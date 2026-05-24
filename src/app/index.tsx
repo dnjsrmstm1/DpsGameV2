@@ -196,17 +196,22 @@ function 생산비용(강도: number): number {
 // 판매 보상 (원본 맵 45~60강 뽑기 확률표 기반)
 // 기본 지급 + 각성보석/확강권/크리스탈조각 확률 드랍
 // 출처: SCX 트리거 string 292~295, 802~803, 904~908, 126~147, 1232
+// 크리스탈박스 등급: 노말/레어/유니크/갤럭시/퀘이사/오리진 — 해당 등급 중 1종 랜덤 +1개
+type 크리스탈박스등급 = '노말' | '레어' | '유니크' | '갤럭시' | '퀘이사' | '오리진'
 type 판매보상결과 = {
   무색조각: number; 응무조: number; 크리스탈조각: number
   ExP: number; 각성보석: number; 확강권: number
+  // 추가 신규 보상
+  은하조각: number; 자각보주: number  // 60강 전용
+  박스: 크리스탈박스등급[]  // 등급별 박스 (각 1개 = 해당 등급 크리스탈 1종 +1)
 }
 function 판매보상(lv: number): 판매보상결과 {
-  const base: 판매보상결과 = { 무색조각: 0, 응무조: 0, 크리스탈조각: 0, ExP: 0, 각성보석: 0, 확강권: 0 }
+  const base: 판매보상결과 = { 무색조각: 0, 응무조: 0, 크리스탈조각: 0, ExP: 0, 각성보석: 0, 확강권: 0, 은하조각: 0, 자각보주: 0, 박스: [] }
   if (lv <= 20) return { ...base, 무색조각: lv * lv * 3 }
   if (lv <= 40) return { ...base, 무색조각: lv * lv * 8, 응무조: Math.max(0, lv - 20) }
   // 41~44강: 응무조 + 크리스탈조각
   if (lv <= 44) return { ...base, 응무조: (lv - 40) * 30, 크리스탈조각: (lv - 40) * 3 }
-  // 45강~50강 (각성의 보석 확률 드랍)
+  // 45~50강: 각성의 보석 확률 드랍
   if (lv === 45) return { ...base, 무색조각: 1 + (Math.random() < 0.10 ? 500 : 0) + (Math.random() < 0.015 ? 10000 : 0),
     각성보석: Math.random() < 0.0005 ? 1 : 0, 확강권: Math.random() < 0.025 ? 20 : 0 }
   if (lv === 46) return { ...base, 무색조각: 4 + (Math.random() < 0.10 ? 1000 : 0) + (Math.random() < 0.0055 ? 40000 : 0),
@@ -219,19 +224,91 @@ function 판매보상(lv: number): 판매보상결과 {
     각성보석: Math.random() < 0.01 ? 7 : 0 }
   if (lv === 50) return { ...base, 무색조각: 3222 + (Math.random() < 0.35 ? 100000 : 0) + (Math.random() < 0.15 ? 4000000 : 0),
     각성보석: Math.random() < 0.05 ? 75 : 0 }
-  // 51강~56강: 크리스탈조각 + 초월 ExP (강도가 클수록 폭증)
+  // 51~56강: 크리스탈조각 + 초월 ExP + 크리스탈박스 확률 드랍
+  // 출처: string 681, 904~908
   if (lv === 51) return { ...base, 크리스탈조각: 1, ExP: 500 }
-  if (lv === 52) return { ...base, 크리스탈조각: 1, ExP: 500 }
-  if (lv === 53) return { ...base, 크리스탈조각: 12, ExP: 8000 }
-  if (lv === 54) return { ...base, 크리스탈조각: 300, ExP: 100000 }
-  if (lv === 55) return { ...base, 크리스탈조각: 2000, ExP: 1400000 }
-  if (lv === 56) return { ...base, 크리스탈조각: 10000, ExP: 25000000 }
-  // 57~60강: 응축무색 + 자각의 보주 (60강)
-  if (lv === 57) return { ...base, 응무조: 1 + (Math.random() < 0.30 ? 10 : 0) }
-  if (lv === 58) return { ...base, 응무조: 15 + (Math.random() < 0.30 ? 200 : 0) }
-  if (lv === 59) return { ...base, 응무조: 300 + (Math.random() < 0.50 ? 1000 : 0) }
-  // 60강: 자각의 보주(보주로 환산 X, 응무조 폭발)
-  return { ...base, 응무조: 100000000, 각성보석: 1 }
+  if (lv === 52) {
+    const 박스: 크리스탈박스등급[] = []
+    if (Math.random() < 0.03) 박스.push('노말')
+    return { ...base, 크리스탈조각: 1, ExP: 500, 박스 }
+  }
+  if (lv === 53) {
+    const 박스: 크리스탈박스등급[] = []
+    if (Math.random() < 0.01) 박스.push('레어')
+    if (Math.random() < 0.07) 박스.push('노말')
+    return { ...base, 크리스탈조각: 12, ExP: 8000, 박스 }
+  }
+  if (lv === 54) {
+    const 박스: 크리스탈박스등급[] = []
+    if (Math.random() < 0.00002) 박스.push('갤럭시')  // 0.002%
+    if (Math.random() < 0.001) 박스.push('유니크')   // 0.1%
+    if (Math.random() < 0.04) 박스.push('레어')       // 4%
+    if (Math.random() < 0.18) 박스.push('노말')       // 18%
+    return { ...base, 크리스탈조각: 300, ExP: 100000, 박스 }
+  }
+  if (lv === 55) {
+    const 박스: 크리스탈박스등급[] = []
+    if (Math.random() < 0.0001) 박스.push('갤럭시')
+    if (Math.random() < 0.01) 박스.push('유니크')
+    if (Math.random() < 0.30) 박스.push('레어')
+    if (Math.random() < 0.50) 박스.push('노말')
+    return { ...base, 크리스탈조각: 2000, ExP: 1400000, 박스 }
+  }
+  if (lv === 56) {
+    const 박스: 크리스탈박스등급[] = []
+    if (Math.random() < 0.001) 박스.push('갤럭시')
+    if (Math.random() < 0.05) 박스.push('유니크')
+    if (Math.random() < 0.70) 박스.push('레어')
+    return { ...base, 크리스탈조각: 10000, ExP: 25000000, 박스 }
+  }
+  // 57~59강: 응축무색 + 퀘이사 박스 확률
+  // 출처: string 126, 143, 147
+  if (lv === 57) {
+    const 박스: 크리스탈박스등급[] = []
+    if (Math.random() < 0.00002) 박스.push('퀘이사')
+    if (Math.random() < 0.02) for (let i = 0; i < 50; i++) 박스.push('갤럭시')  // 갤럭시 50
+    if (Math.random() < 0.10) for (let i = 0; i < 100; i++) 박스.push('유니크')  // 유니크 100
+    return { ...base, 응무조: 1 + (Math.random() < 0.30 ? 10 : 0), 박스 }
+  }
+  if (lv === 58) {
+    const 박스: 크리스탈박스등급[] = []
+    if (Math.random() < 0.00002) for (let i = 0; i < 10; i++) 박스.push('퀘이사')
+    if (Math.random() < 0.001) 박스.push('퀘이사')
+    if (Math.random() < 0.05) for (let i = 0; i < 1000; i++) 박스.push('갤럭시')
+    if (Math.random() < 0.10) for (let i = 0; i < 2000; i++) 박스.push('유니크')
+    return { ...base, 응무조: 15 + (Math.random() < 0.30 ? 200 : 0), 박스 }
+  }
+  if (lv === 59) {
+    const 박스: 크리스탈박스등급[] = []
+    if (Math.random() < 0.0005) for (let i = 0; i < 50; i++) 박스.push('퀘이사')
+    if (Math.random() < 0.01) for (let i = 0; i < 3; i++) 박스.push('퀘이사')
+    return { ...base, 응무조: 300 + (Math.random() < 0.50 ? 1000 : 0), 박스 }
+  }
+  // 60강: 창조 25% / 파멸 25% / 자각의 보주 25% / 은하의 조각 25%
+  // 출처: string 1232
+  {
+    const r = Math.random()
+    const 결과: 판매보상결과 = { ...base, 응무조: 100000000 }
+    if (r < 0.25) 결과.박스 = ['오리진']  // 창조 또는 파멸 (랜덤)
+    else if (r < 0.50) 결과.박스 = ['오리진']
+    else if (r < 0.75) 결과.자각보주 = 1
+    else 결과.은하조각 = 1
+    return 결과
+  }
+}
+
+// 크리스탈박스 → 해당 등급 크리스탈 중 1종 랜덤 픽
+const 크리스탈박스내용물: Record<크리스탈박스등급, (keyof 명칭크리스탈목록)[]> = {
+  노말: ['방어', '행운', '경험', '무력', '절약', '총명', '보호', '각성'],
+  레어: ['홍색', '주황', '노랑', '초록', '파랑', '남색', '보라', '하늘색', '무색명칭'],
+  유니크: ['흑색', '백색명칭'],
+  갤럭시: ['우주'],
+  퀘이사: ['길운Q', '무구Q', '집중Q', '절제Q', '탐욕Q', '증식Q', '미래Q', '돌파Q'],
+  오리진: ['창조O', '파멸O'],
+}
+function 박스개봉(등급: 크리스탈박스등급): keyof 명칭크리스탈목록 {
+  const 후보 = 크리스탈박스내용물[등급]
+  return 후보[Math.floor(Math.random() * 후보.length)]
 }
 
 // 사냥터 슬롯 (총 공격수 마일스톤)
@@ -632,6 +709,10 @@ export default function App() {
   const [ExPoint, setExPoint] = useState(0)
   // 확정 강화권: 강화 1회 100% 성공 (보스/박스 드랍)
   const [확정강화권, set확정강화권] = useState(0)
+  // 은하의 조각: 60강 판매 25% 드랍 (우주 크리스탈 업그레이드용)
+  const [은하조각, set은하조각] = useState(0)
+  // 자각의 보주: 60강 판매 25% 드랍 (진각성 시스템용 - 미구현)
+  const [자각보주, set자각보주] = useState(0)
   // 영구강화 (무색조각/응무조 사용)
   const [업그레이드, set업그레이드] = useState({ 공격력: 0, 자원: 0, 강화확률: 0, 이속: 0, 공속: 0 })
   // 패널
@@ -686,6 +767,8 @@ export default function App() {
   const 각성의보석Ref = useRef(각성의보석); 각성의보석Ref.current = 각성의보석
   const ExPointRef = useRef(ExPoint); ExPointRef.current = ExPoint
   const 확정강화권Ref = useRef(확정강화권); 확정강화권Ref.current = 확정강화권
+  const 은하조각Ref = useRef(은하조각); 은하조각Ref.current = 은하조각
+  const 자각보주Ref = useRef(자각보주); 자각보주Ref.current = 자각보주
   const 업그레이드Ref = useRef(업그레이드); 업그레이드Ref.current = 업그레이드
   const 자동강화ONRef = useRef(자동강화ON); 자동강화ONRef.current = 자동강화ON
   const 자동강화최대lvRef = useRef(자동강화최대lv); 자동강화최대lvRef.current = 자동강화최대lv
@@ -790,6 +873,8 @@ export default function App() {
           if (typeof d.각성의보석 === 'number') set각성의보석(d.각성의보석)
           if (typeof d.ExPoint === 'number') setExPoint(d.ExPoint)
           if (typeof d.확정강화권 === 'number') set확정강화권(d.확정강화권)
+          if (typeof d.은하조각 === 'number') set은하조각(d.은하조각)
+          if (typeof d.자각보주 === 'number') set자각보주(d.자각보주)
           // 오프라인 보상
           if (typeof d.마지막저장시간 === 'number' && d.마지막저장시간 > 0) {
             const 경과초 = Math.min(8 * 3600, (Date.now() - d.마지막저장시간) / 1000)
@@ -823,7 +908,7 @@ export default function App() {
       캐릭레벨, 경험치, 잔여포인트,
       일반스텟, 초월스텟, 명칭크리스탈,
       크레딧, 보석, 고유유닛, 초월레벨, 초월잔여포인트,
-      각성의보석, ExPoint, 확정강화권,
+      각성의보석, ExPoint, 확정강화권, 은하조각, 자각보주,
       누적강화성공, 누적판매, 최고마린lv,
       자동강화ON, 자동강화최대lv, 자동판매ON, 자동판매lv, 자동구입강도, 자동구입ON, 자동응축ON,
       마지막저장시간: Date.now(),
@@ -835,7 +920,7 @@ export default function App() {
       캐릭레벨, 경험치, 잔여포인트,
       일반스텟, 초월스텟, 명칭크리스탈,
       크레딧, 보석, 고유유닛, 초월레벨, 초월잔여포인트,
-      각성의보석, ExPoint, 확정강화권,
+      각성의보석, ExPoint, 확정강화권, 은하조각, 자각보주,
       누적강화성공, 누적판매, 최고마린lv,
       자동강화ON, 자동강화최대lv, 자동판매ON, 자동판매lv, 자동구입강도, 자동구입ON, 자동응축ON, 로드완료])
 
@@ -1211,13 +1296,14 @@ export default function App() {
       })
 
       // 판매소 zone에 도달한 마린 판매 처리
-      let 판매무색 = 0, 판매응무조 = 0, 판매크리조각 = 0, 판매ExP = 0, 판매각성 = 0, 판매확강권 = 0
+      let 판매무색 = 0, 판매응무조 = 0, 판매크리조각 = 0, 판매ExP = 0, 판매각성 = 0, 판매확강권 = 0, 판매은하 = 0, 판매자각 = 0
       const 판매보주드랍: 보주[] = []
+      const 판매크리스탈드랍: (keyof 명칭크리스탈목록)[] = []
       const 판매보상배수 = 1 + 보주합산(eqBj, invBj, '판매') + 명칭보너스.판매배수
       const 무색배수 = 1 + 보주합산(eqBj, invBj, '무색') + 명칭보너스.무색배수
       const 조각배수 = 1 + 보주합산(eqBj, invBj, '조각')
       // 보석 각성 획득량 보너스 (각성 크리스탈 + 보석 효과)
-      const 각성배수 = 1 + 명칭보너스.파괴방지 * 0  // placeholder for 각성보석 multiplier hook
+      const 각성배수 = 1 + 명칭크리스탈Ref.current.각성 * 1.0 + 명칭크리스탈Ref.current.노랑 * 1.0 + 명칭크리스탈Ref.current.우주 * 5.0
       for (const s of 판매수집) {
         const r = 판매보상(s.lv)
         판매무색 += Math.round(r.무색조각 * 판매보상배수 * 무색배수)
@@ -1226,6 +1312,12 @@ export default function App() {
         판매ExP += Math.round(r.ExP * 판매보상배수)
         판매각성 += Math.round(r.각성보석 * 각성배수)
         판매확강권 += r.확강권
+        판매은하 += r.은하조각
+        판매자각 += r.자각보주
+        // 크리스탈 박스 개봉 → 해당 등급 크리스탈 1종 +1
+        for (const 등급 of r.박스) {
+          판매크리스탈드랍.push(박스개봉(등급))
+        }
         // 45강+ 판매 시 보주 드랍 확률 (원본 맵: 45강 뽑기)
         if (s.lv >= 45 && Math.random() < 0.15) {
           const 종류 = 보주종류목록[Math.floor(Math.random() * 보주종류목록.length)]
@@ -1271,7 +1363,17 @@ export default function App() {
       if (판매크리조각 > 0) set크리스탈조각(prev => prev + 판매크리조각)
       if (판매각성 > 0) set각성의보석(prev => prev + 판매각성)
       if (판매확강권 > 0) set확정강화권(prev => prev + 판매확강권)
+      if (판매은하 > 0) set은하조각(prev => prev + 판매은하)
+      if (판매자각 > 0) set자각보주(prev => prev + 판매자각)
       if (판매보주드랍.length > 0) set보주목록(prev => [...prev, ...판매보주드랍])
+      // 크리스탈 박스 결과 (각각 1개씩 명칭크리스탈에 +1)
+      if (판매크리스탈드랍.length > 0) {
+        set명칭크리스탈(prev => {
+          const next = { ...prev }
+          for (const k of 판매크리스탈드랍) next[k] = (next[k] as number) + 1
+          return next
+        })
+      }
 
       // 🌀 초월 ExP → 초월레벨 자동 승급 (원본 맵: 30만 레벨 달성 + ExP 누적)
       // 판매ExP를 한 곳에서만 적용 + auto-level
@@ -1325,6 +1427,9 @@ export default function App() {
         if (판매ExP > 0) parts.push(`⭐+${숫자포맷(판매ExP)}`)
         if (판매각성 > 0) parts.push(`💎+${판매각성}각성`)
         if (판매확강권 > 0) parts.push(`🎟️+${판매확강권}`)
+        if (판매은하 > 0) parts.push(`🌌+${판매은하}은하`)
+        if (판매자각 > 0) parts.push(`🔯+${판매자각}자각`)
+        if (판매크리스탈드랍.length > 0) parts.push(`🌟${판매크리스탈드랍.length}박스`)
         if (판매보주드랍.length > 0) parts.push(`⚔️보주(${판매보주드랍.map(b => b.종류).join(',')})`)
         메시지표시(`🛒 판매 ${판매수집.length} ${parts.join(' ')}`)
       }
@@ -1774,11 +1879,13 @@ export default function App() {
           {초월레벨 > 0 && <Text style={[styles.statSmall, { color: '#a855f7' }]}>🌀초월Lv.{초월레벨}{초월잔여포인트 > 0 ? ` (+${초월잔여포인트}P)` : ''}</Text>}
           {크레딧 > 0 && <Text style={[styles.statSmall, { color: '#f5a623' }]}>💰 {숫자포맷(크레딧)}크레딧</Text>}
         </View>
-        {(각성의보석 > 0 || ExPoint > 0 || 확정강화권 > 0) && (
+        {(각성의보석 > 0 || ExPoint > 0 || 확정강화권 > 0 || 은하조각 > 0 || 자각보주 > 0) && (
           <View style={styles.statRow}>
             {각성의보석 > 0 && <Text style={[styles.statSmall, { color: '#ff6ad9' }]}>💎 {숫자포맷(각성의보석)} 각성</Text>}
             {ExPoint > 0 && <Text style={[styles.statSmall, { color: '#a855f7' }]}>⭐ {숫자포맷(ExPoint)} ExP</Text>}
             {확정강화권 > 0 && <Text style={[styles.statSmall, { color: '#7ed957' }]}>🎟️ {숫자포맷(확정강화권)} 확강권</Text>}
+            {은하조각 > 0 && <Text style={[styles.statSmall, { color: '#4ec9ff' }]}>🌌 {숫자포맷(은하조각)} 은하</Text>}
+            {자각보주 > 0 && <Text style={[styles.statSmall, { color: '#f5a623' }]}>🔯 {숫자포맷(자각보주)} 자각</Text>}
           </View>
         )}
       </View>
