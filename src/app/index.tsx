@@ -1761,16 +1761,13 @@ export default function App() {
         ...(Platform.OS === 'web' ? { touchAction: 'none', overscrollBehavior: 'contain' } : {}),
       }]}>
       {/* 배경 이미지 (절대 첫 자식, 터치 무시) */}
-      <Image
-        source={현재화면 === 'base' ? BG_LOBBY : 현재화면 === 'hunting' ? BG_HUNTING : BG_BOSS}
-        style={{
-          position: 'absolute', top: 0, left: 0,
-          width: 필드_W, height: 필드_H,
-          opacity: 0.55,
-        }}
-        resizeMode="cover"
-        pointerEvents="none"
-      />
+      <View style={{ position: 'absolute', top: 0, left: 0, width: 필드_W, height: 필드_H }} pointerEvents="none">
+        <Image
+          source={현재화면 === 'base' ? BG_LOBBY : 현재화면 === 'hunting' ? BG_HUNTING : BG_BOSS}
+          style={{ width: 필드_W, height: 필드_H, opacity: 0.55 }}
+          resizeMode="cover"
+        />
+      </View>
       <View
         ref={fieldRef}
         style={styles.fieldInner}
@@ -2716,13 +2713,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fieldInner: {
-    position: 'absolute',
+    position: 'absolute' as const,
     top: 0, left: 0,
     width: 필드_W,
     height: 필드_H,
-    // @ts-ignore
     cursor: 'crosshair',
-  },
+  } as any,
   fieldAttackMode: { borderColor: '#e94560' },
   zone: {
     position: 'absolute',
