@@ -193,12 +193,45 @@ function 생산비용(강도: number): number {
   return 생산비용표[강도] ?? Number.MAX_SAFE_INTEGER
 }
 
-// 판매 보상 (원본 맵 기반: 41강+ 크리스탈조각 드랍)
-function 판매보상(lv: number): { 무색조각: number; 응무조: number; 크리스탈조각: number } {
-  if (lv <= 20) return { 무색조각: lv * lv * 3, 응무조: 0, 크리스탈조각: 0 }
-  if (lv <= 40) return { 무색조각: lv * lv * 8, 응무조: Math.max(0, lv - 20), 크리스탈조각: 0 }
-  if (lv <= 44) return { 무색조각: 0, 응무조: (lv - 40) * 30, 크리스탈조각: (lv - 40) * 3 }
-  return { 무색조각: 0, 응무조: (lv - 44) * 50, 크리스탈조각: (lv - 44) * 10 }
+// 판매 보상 (원본 맵 45~60강 뽑기 확률표 기반)
+// 기본 지급 + 각성보석/확강권/크리스탈조각 확률 드랍
+// 출처: SCX 트리거 string 292~295, 802~803, 904~908, 126~147, 1232
+type 판매보상결과 = {
+  무색조각: number; 응무조: number; 크리스탈조각: number
+  ExP: number; 각성보석: number; 확강권: number
+}
+function 판매보상(lv: number): 판매보상결과 {
+  const base: 판매보상결과 = { 무색조각: 0, 응무조: 0, 크리스탈조각: 0, ExP: 0, 각성보석: 0, 확강권: 0 }
+  if (lv <= 20) return { ...base, 무색조각: lv * lv * 3 }
+  if (lv <= 40) return { ...base, 무색조각: lv * lv * 8, 응무조: Math.max(0, lv - 20) }
+  // 41~44강: 응무조 + 크리스탈조각
+  if (lv <= 44) return { ...base, 응무조: (lv - 40) * 30, 크리스탈조각: (lv - 40) * 3 }
+  // 45강~50강 (각성의 보석 확률 드랍)
+  if (lv === 45) return { ...base, 무색조각: 1 + (Math.random() < 0.10 ? 500 : 0) + (Math.random() < 0.015 ? 10000 : 0),
+    각성보석: Math.random() < 0.0005 ? 1 : 0, 확강권: Math.random() < 0.025 ? 20 : 0 }
+  if (lv === 46) return { ...base, 무색조각: 4 + (Math.random() < 0.10 ? 1000 : 0) + (Math.random() < 0.0055 ? 40000 : 0),
+    각성보석: Math.random() < 0.00075 ? 1 : 0 }
+  if (lv === 47) return { ...base, 무색조각: 7 + (Math.random() < 0.10 ? 2000 : 0) + (Math.random() < 0.0047 ? 70000 : 0),
+    각성보석: Math.random() < 0.0016 ? 1 : 0 }
+  if (lv === 48) return { ...base, 무색조각: 10 + (Math.random() < 0.10 ? 5000 : 0) + (Math.random() < 0.0099 ? 100000 : 0),
+    각성보석: Math.random() < 0.005 ? 1 : 0 }
+  if (lv === 49) return { ...base, 무색조각: 322 + (Math.random() < 0.30 ? 10000 : 0) + (Math.random() < 0.15 ? 100000 : 0) + (Math.random() < 0.015 ? 1000000 : 0),
+    각성보석: Math.random() < 0.01 ? 7 : 0 }
+  if (lv === 50) return { ...base, 무색조각: 3222 + (Math.random() < 0.35 ? 100000 : 0) + (Math.random() < 0.15 ? 4000000 : 0),
+    각성보석: Math.random() < 0.05 ? 75 : 0 }
+  // 51강~56강: 크리스탈조각 + 초월 ExP (강도가 클수록 폭증)
+  if (lv === 51) return { ...base, 크리스탈조각: 1, ExP: 500 }
+  if (lv === 52) return { ...base, 크리스탈조각: 1, ExP: 500 }
+  if (lv === 53) return { ...base, 크리스탈조각: 12, ExP: 8000 }
+  if (lv === 54) return { ...base, 크리스탈조각: 300, ExP: 100000 }
+  if (lv === 55) return { ...base, 크리스탈조각: 2000, ExP: 1400000 }
+  if (lv === 56) return { ...base, 크리스탈조각: 10000, ExP: 25000000 }
+  // 57~60강: 응축무색 + 자각의 보주 (60강)
+  if (lv === 57) return { ...base, 응무조: 1 + (Math.random() < 0.30 ? 10 : 0) }
+  if (lv === 58) return { ...base, 응무조: 15 + (Math.random() < 0.30 ? 200 : 0) }
+  if (lv === 59) return { ...base, 응무조: 300 + (Math.random() < 0.50 ? 1000 : 0) }
+  // 60강: 자각의 보주(보주로 환산 X, 응무조 폭발)
+  return { ...base, 응무조: 100000000, 각성보석: 1 }
 }
 
 // 사냥터 슬롯 (총 공격수 마일스톤)
@@ -984,17 +1017,34 @@ export default function App() {
               }
               return 새m
             }
-            const 증가 = m.lv < 50 ? 강화시도(m.lv, 스텟, 외부강화보너스, 보석b) : 0
+            // 51~59강: 초월 강화 (강화시도 사용, 실패시 초월 ExP 보상)
+            // 60강 = MAX, 50강 = 별도 (위에서 처리)
+            const 강화가능 = (m.lv < 50) || (m.lv >= 51 && m.lv < 60)
+            const 증가 = 강화가능 ? 강화시도(m.lv, 스텟, 외부강화보너스, 보석b) : 0
             if (증가 > 0) {
-              // 성공 (+1강 / +2강 / +3강)
+              // 성공 (+1강 / +2강 / +3강 또는 +1만 — 강화시도가 처리)
               새m.lv = m.lv + 증가
               set누적강화성공(p => p + 1)
               set최고마린lv(p => Math.max(p, 새m.lv))
+              if (m.lv >= 51) {
+                메시지표시(`✨ ${m.lv}강 → ${새m.lv}강! (초월 강화 성공)`)
+              }
             } else {
               // 실패 페널티
               const r = 강화실패결과(m.lv, 스텟.특수파괴방지 + 스텟.특수파괴방지2 + 명칭보너스.파괴방지 + 보석b.파괴방지 + 고유유닛스텟cur.파괴방지)
+              // 51~55강 강화 실패 → 초월 ExP 보상 (원본 맵 string 502, 695-696, 822-823)
+              if (m.lv >= 51 && m.lv <= 55) {
+                const 초월exp표: Record<number, number> = { 51: 1, 52: 20, 53: 350, 54: 10000, 55: 160000 }
+                const exp획득 = 초월exp표[m.lv] ?? 0
+                if (exp획득 > 0) {
+                  setExPoint(prev => prev + exp획득)
+                  if (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 1000) {
+                    메시지표시(`💥 ${m.lv}강 강화 실패... ⭐ +${숫자포맷(exp획득)} 초월EXP`)
+                  }
+                }
+              }
               if (r.파괴) {
-                if (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 1000) {
+                if (m.lv < 51 && (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 1000)) {
                   메시지표시(`💥 ${m.lv}강 마린 파괴!`)
                 }
                 return { ...새m, id: -1 }  // 마킹: 제거
@@ -1161,16 +1211,21 @@ export default function App() {
       })
 
       // 판매소 zone에 도달한 마린 판매 처리
-      let 판매무색 = 0, 판매응무조 = 0, 판매크리조각 = 0
+      let 판매무색 = 0, 판매응무조 = 0, 판매크리조각 = 0, 판매ExP = 0, 판매각성 = 0, 판매확강권 = 0
       const 판매보주드랍: 보주[] = []
       const 판매보상배수 = 1 + 보주합산(eqBj, invBj, '판매') + 명칭보너스.판매배수
       const 무색배수 = 1 + 보주합산(eqBj, invBj, '무색') + 명칭보너스.무색배수
       const 조각배수 = 1 + 보주합산(eqBj, invBj, '조각')
+      // 보석 각성 획득량 보너스 (각성 크리스탈 + 보석 효과)
+      const 각성배수 = 1 + 명칭보너스.파괴방지 * 0  // placeholder for 각성보석 multiplier hook
       for (const s of 판매수집) {
         const r = 판매보상(s.lv)
         판매무색 += Math.round(r.무색조각 * 판매보상배수 * 무색배수)
         판매응무조 += Math.round(r.응무조 * 판매보상배수)
         판매크리조각 += Math.round(r.크리스탈조각 * 판매보상배수 * 조각배수)
+        판매ExP += Math.round(r.ExP * 판매보상배수)
+        판매각성 += Math.round(r.각성보석 * 각성배수)
+        판매확강권 += r.확강권
         // 45강+ 판매 시 보주 드랍 확률 (원본 맵: 45강 뽑기)
         if (s.lv >= 45 && Math.random() < 0.15) {
           const 종류 = 보주종류목록[Math.floor(Math.random() * 보주종류목록.length)]
@@ -1214,7 +1269,31 @@ export default function App() {
       if (판매무색 > 0) set무색조각(prev => prev + 판매무색)
       if (판매응무조 > 0) set응무조(prev => prev + 판매응무조)
       if (판매크리조각 > 0) set크리스탈조각(prev => prev + 판매크리조각)
+      if (판매각성 > 0) set각성의보석(prev => prev + 판매각성)
+      if (판매확강권 > 0) set확정강화권(prev => prev + 판매확강권)
       if (판매보주드랍.length > 0) set보주목록(prev => [...prev, ...판매보주드랍])
+
+      // 🌀 초월 ExP → 초월레벨 자동 승급 (원본 맵: 30만 레벨 달성 + ExP 누적)
+      // 판매ExP를 한 곳에서만 적용 + auto-level
+      // 비용: max(1000, 현재레벨 * 1000) — 초기 빠르게, 후반 점진적
+      if (판매ExP > 0 || ExPointRef.current >= 1000) {
+        let lv = 초월레벨Ref.current
+        let exp = ExPointRef.current + 판매ExP
+        let lvUp = 0
+        while (lvUp < 10000) {  // 안전 가드
+          const cost = Math.max(1000, lv * 1000)
+          if (exp < cost) break
+          exp -= cost
+          lv++
+          lvUp++
+        }
+        setExPoint(exp)
+        if (lvUp > 0) {
+          set초월레벨(lv)
+          set초월잔여포인트(p => p + lvUp)
+          메시지표시(`🌀 초월레벨 +${lvUp}! → Lv.${lv} (초월포인트 +${lvUp})`)
+        }
+      }
 
       // 자동 응축 (무색 1만 이상 시 자동 변환)
       if (자동응축ONRef.current) {
@@ -1230,16 +1309,16 @@ export default function App() {
 
       if (판매수집.length > 0) {
         set누적판매(p => p + 판매수집.length)
-        // 판매 XP: lv * 10
+        // 판매 XP: lv * 10 (일반 캐릭레벨 경험치)
         const 판매XP = 판매수집.reduce((s, x) => s + x.lv * 10, 0)
         if (판매XP > 0) XP획득(판매XP)
-        // ExPoint: 51강+ 판매 시 (lv - 50) * 200 획득
-        const 판매Ex = 판매수집.filter(x => x.lv >= 51).reduce((s, x) => s + (x.lv - 50) * 200, 0)
-        if (판매Ex > 0) setExPoint(prev => prev + 판매Ex)
         const parts: string[] = []
         if (판매무색 > 0) parts.push(`🔷+${숫자포맷(판매무색)}`)
-        if (판매응무조 > 0) parts.push(`💠+${판매응무조}`)
-        if (판매크리조각 > 0) parts.push(`🔮+${판매크리조각}`)
+        if (판매응무조 > 0) parts.push(`💠+${숫자포맷(판매응무조)}`)
+        if (판매크리조각 > 0) parts.push(`🔮+${숫자포맷(판매크리조각)}`)
+        if (판매ExP > 0) parts.push(`⭐+${숫자포맷(판매ExP)}`)
+        if (판매각성 > 0) parts.push(`💎+${판매각성}각성`)
+        if (판매확강권 > 0) parts.push(`🎟️+${판매확강권}`)
         if (판매보주드랍.length > 0) parts.push(`⚔️보주(${판매보주드랍.map(b => b.종류).join(',')})`)
         메시지표시(`🛒 판매 ${판매수집.length} ${parts.join(' ')}`)
       }
@@ -2041,18 +2120,13 @@ export default function App() {
             >
               <Text style={styles.upgBtnText}>💎×10 → 🌀+1</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.upgBtn, ExPoint < 100 && styles.upgBtnOff, { minWidth: 130 }]}
-              onPress={() => {
-                if (ExPointRef.current < 100) { 메시지표시('⭐ ExPoint 100 필요'); return }
-                setExPoint(p => p - 100)
-                set잔여포인트(p => p + 1)
-                메시지표시(`⭐×100 → 일반포인트 +1`)
-              }}
-            >
-              <Text style={styles.upgBtnText}>⭐×100 → +1P</Text>
-            </TouchableOpacity>
           </View>
+          {/* 초월 ExP 진행도 표시 */}
+          {(ExPoint > 0 || 초월레벨 > 0) && (
+            <Text style={[styles.prodSubtitle, { color: '#a855f7' }]}>
+              🌀 초월 Lv.{초월레벨} · ⭐ {숫자포맷(ExPoint)} / {숫자포맷(Math.max(1000, 초월레벨 * 1000))} ExP (자동승급)
+            </Text>
+          )}
           {/* 스텟 탭 */}
           <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
             <TouchableOpacity
