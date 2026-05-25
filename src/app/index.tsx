@@ -1722,9 +1722,9 @@ export default function App() {
               const 단가_base = tier === 1 ? 1 : tier === 2 ? 100000 : 10000000000
               const 단가 = tier === 3 ? 단가_base * Lv3단수배율 : 단가_base
               추가미네랄 += dmg * 단가 * 사냥터곱셈 * currentBatch * 자원배수기여
-              // 사냥터 3 → 크레딧 소량 부가 (기존 유지)
+              // 사냥터 3 (광산) → 크레딧 + 돈 동시 획득 (돈은 위에서 이미 가산)
               if (tier === 3) {
-                추가크레딧 += Math.max(1, Math.floor(dmg / 1000))
+                추가크레딧 += Math.max(1, Math.floor(dmg / 100))
               }
               // 타격수: 41강+ 데미지 그대로, 미만은 +1
               추가공격수 += n.lv >= 41 ? Math.round(dmg) : 1
@@ -2619,6 +2619,23 @@ export default function App() {
               {자각보주 > 0 && <Text style={[styles.statSmall, { color: '#f5a623' }]}>🔯 자각: {숫자포맷(자각보주)}</Text>}
               {초월레벨 > 0 && <Text style={[styles.statSmall, { color: '#a855f7' }]}>🌀 초월Lv.{초월레벨}</Text>}
               {환생레벨 > 0 && <Text style={[styles.statSmall, { color: '#ff6ad9' }]}>🌟 환생Lv.{환생레벨}</Text>}
+            </View>
+            {/* ExPoint → 크레딧 교환 */}
+            <View style={{ flexDirection: 'row', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+              {[1, 10, 100, 1000].map(n => (
+                <TouchableOpacity
+                  key={n}
+                  style={[styles.upgBtn, ExPoint < n && styles.upgBtnOff, { minWidth: 110, paddingHorizontal: 6 }]}
+                  onPress={() => {
+                    if (ExPointRef.current < n) { 메시지표시(`⭐ ExPoint ${n} 필요`); return }
+                    setExPoint(p => p - n)
+                    set크레딧(p => p + n * 100000)
+                    메시지표시(`⭐${n} → 💰${숫자포맷(n * 100000)} 크레딧`)
+                  }}
+                >
+                  <Text style={[styles.upgBtnText, { fontSize: 10 }]}>⭐{n} → 💰{숫자포맷(n * 100000)}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
         )}
