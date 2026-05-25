@@ -665,6 +665,31 @@ const 보석구입비용: Record<보석타입, number> = {
   재물: 200, 경험보석: 200, 보호보석: 500, 궁극: 1000, 수호: 500, 초월보석: 1000, 인내: 2000,
   강타: 1500, 자동화: 3000, 채광: 800, 섬세: 500,
 }
+// xlsx 신버전 시트 기반 max 값. 그 외는 기본 100 추정 적용
+const 보석max: Record<보석타입, number> = {
+  하급: 100, 중급: 100, 상급: 100, 특급: 100, 고급: 1000,
+  재물: 100, 경험보석: 100, 보호보석: 100, 궁극: 100, 수호: 100, 초월보석: 100, 인내: 100,
+  강타: 100, 자동화: 100, 채광: 100, 섬세: 100,
+}
+// 동적 비용: cost = baseCost × (1 + 보유/10)
+function 보석현재비용(종류: 보석타입, 보유: number): number {
+  return Math.floor(보석구입비용[종류] * (1 + 보유 / 10))
+}
+// 명칭 크리스탈 max 값. xlsx 퀘이사 명시 + 기타는 추정
+const 명칭크리스탈max: Partial<Record<keyof 명칭크리스탈목록, number>> = {
+  // 노말 (구입 없음 — 박스 드랍만, 그래도 효과 max 제한)
+  방어: 100, 행운: 100, 경험: 100, 무력: 100, 절약: 100, 총명: 100, 보호: 100, 각성: 100,
+  // 레어
+  홍색: 100, 주황: 100, 노랑: 100, 초록: 100, 파랑: 100, 남색: 100, 보라: 100, 하늘색: 100, 무색명칭: 100,
+  // 유니크
+  흑색: 100, 백색명칭: 100,
+  // 갤럭시
+  우주: 200,
+  // 퀘이사 (xlsx 명시)
+  길운Q: 160, 무구Q: 300, 집중Q: 100, 절제Q: 100, 탐욕Q: 50, 증식Q: 50, 미래Q: 200, 돌파Q: 20,
+  // 오리진
+  창조O: 50, 파멸O: 50,
+}
 
 function 보석보너스합산(b: 보석목록) {
   // 강화확률 추가 (decimal, 0~1)
@@ -1686,11 +1711,15 @@ export default function App() {
       if (판매자각 > 0) set자각보주(prev => prev + 판매자각)
       if (판매크레딧 > 0) set크레딧(prev => prev + 판매크레딧)
       if (판매일반XP > 0) XP획득(판매일반XP)
-      // 크리스탈 박스 결과 (각각 1개씩 명칭크리스탈에 +1)
+      // 크리스탈 박스 결과 (각각 1개씩 명칭크리스탈에 +1, max 캡)
       if (판매크리스탈드랍.length > 0) {
         set명칭크리스탈(prev => {
           const next = { ...prev }
-          for (const k of 판매크리스탈드랍) next[k] = (next[k] as number) + 1
+          for (const k of 판매크리스탈드랍) {
+            const cap = 명칭크리스탈max[k] ?? 100
+            const cur = next[k] as number
+            if (cur < cap) next[k] = cur + 1
+          }
           return next
         })
       }
@@ -1744,7 +1773,9 @@ export default function App() {
               const next = { ...prev }
               for (const 등급 of total박스) {
                 const k = 박스개봉(등급)
-                next[k] = (next[k] as number) + 1
+                const cap = 명칭크리스탈max[k] ?? 100
+                const cur = next[k] as number
+                if (cur < cap) next[k] = cur + 1
               }
               return next
             })
@@ -2059,13 +2090,14 @@ export default function App() {
     메시지표시(`⚔️ ${종류} 보주 +${가능수}`)
   }
 
-  // 보석 구입 (무색조각 사용)
+  // 보석 구입 (무색조각 사용) — max 체크 + 동적 비용
   function 보석구입(종류: 보석타입) {
-    const 비용 = 보석구입비용[종류]
+    const 현재 = 보석Ref.current[종류]
+    if (현재 >= 보석max[종류]) { 메시지표시(`⛔ ${종류} MAX (${보석max[종류]})`); return }
+    const 비용 = 보석현재비용(종류, 현재)
     if (무색조각Ref.current < 비용) { 메시지표시(`🔷 무색조각 ${숫자포맷(비용)} 필요`); return }
     set무색조각(prev => prev - 비용)
     set보석(prev => ({ ...prev, [종류]: prev[종류] + 1 }))
-    메시지표시(`💎 ${종류} 보석 구입!`)
   }
 
   function 보석연속시작(종류: 보석타입) {
@@ -2901,22 +2933,26 @@ export default function App() {
               ]
               return (
                 <>
-                  <Text style={[styles.prodSubtitle, { color: '#bbb' }]}>🔷 무색조각 {숫자포맷(무색조각)} · 길게 눌러 연속 강화</Text>
+                  <Text style={[styles.prodSubtitle, { color: '#bbb' }]}>🔷 무색조각 {숫자포맷(무색조각)} · 길게 눌러 연속 강화 (cost = base × (1+보유/10))</Text>
                   {보석정보in.map(({ 종류, 이모지, 설명, 효과 }) => {
-                    const 비용 = 보석구입비용[종류]
-                    const ok = 무색조각 >= 비용
+                    const 보유 = 보석[종류]
+                    const 한도 = 보석max[종류]
+                    const maxed = 보유 >= 한도
+                    const 비용 = maxed ? 0 : 보석현재비용(종류, 보유)
+                    const ok = !maxed && 무색조각 >= 비용
                     return (
                       <View key={종류} style={styles.upgRow}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.upgLabel}>{이모지} {설명}</Text>
+                          <Text style={styles.upgLabel}>{이모지} {설명} <Text style={{ color: '#f5a623' }}>{보유}/{한도}</Text></Text>
                           <Text style={styles.upgEffect}>{효과}</Text>
                         </View>
                         <TouchableOpacity
-                          style={[styles.upgBtn, !ok && styles.upgBtnOff, { minWidth: 70 }]}
-                          onPressIn={() => 보석연속시작(종류)}
+                          style={[styles.upgBtn, !ok && styles.upgBtnOff, { minWidth: 80 }]}
+                          onPressIn={() => !maxed && 보석연속시작(종류)}
                           onPressOut={보석연속종료}
+                          disabled={maxed}
                         >
-                          <Text style={styles.upgBtnText}>🔷{숫자포맷(비용)}</Text>
+                          <Text style={styles.upgBtnText}>{maxed ? 'MAX' : `🔷${숫자포맷(비용)}`}</Text>
                         </TouchableOpacity>
                       </View>
                     )
@@ -3044,7 +3080,7 @@ export default function App() {
                 return (
                   <View key={info.키} style={[styles.upgRow, { borderLeftWidth: 3, borderLeftColor: info.색상, paddingLeft: 8, opacity: 보유 ? 1 : 0.4 }]}>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.upgLabel, { color: info.색상 }]}>{info.이름} ×{현재수}{장착됨 ? ' 🟢장착' : ''}</Text>
+                      <Text style={[styles.upgLabel, { color: info.색상 }]}>{info.이름} <Text style={{ color: '#f5a623' }}>{현재수}/{명칭크리스탈max[info.키] ?? 100}</Text>{장착됨 ? ' 🟢장착' : ''}</Text>
                       <Text style={[styles.upgEffect, { color: '#ccc' }]}>{info.효과}</Text>
                     </View>
                     <TouchableOpacity
