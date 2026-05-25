@@ -1878,20 +1878,17 @@ export default function App() {
         if ((baseN + 1) % 6 === 0) {
           const 회 = extraVI받음Ref.current + 1
           setExtraVI받음(회)
-          set응무조(prev => prev + 20)
           setExPoint(prev => prev + 500)
-          XP획득(500 * 3 * 100)  // 일반Lv +500*3 (대략)
-          메시지표시(`🎉 Extra LV. VI (${회}회차) 클리어! 💠+20 ⭐+500 + 일반 XP 폭증`)
+          XP획득(500 * 3 * 100)
+          메시지표시(`🎉 Extra LV. VI (${회}회차) 클리어! ⭐+500 + 일반 XP 폭증`)
         }
-        // 🎉 Extra LV. XI (파티보스 11단계): 11보스마다 1회 보상
-        // 보상: 응무조 +100, 크레딧 +200만, ExPoint 2500
+        // Extra LV. XI: 11보스마다 1회 보상 (응무조 제거)
         if ((baseN + 1) % 11 === 0) {
           const 회 = extraXI받음Ref.current + 1
           setExtraXI받음(회)
-          set응무조(prev => prev + 100)
           set크레딧(prev => prev + 2000000)
           setExPoint(prev => prev + 2500)
-          메시지표시(`🎊 Extra LV. XI (${회}회차) 클리어! 💠+100 💰+200만 ⭐+2500`)
+          메시지표시(`🎊 Extra LV. XI (${회}회차) 클리어! 💰+200만 ⭐+2500`)
         }
         const 새보스 = baseN + 1
         const 새배수 = 1 + Math.min(새보스, 6) * 0.5
@@ -1960,22 +1957,22 @@ export default function App() {
     메시지표시('🏠 사냥터 마린 베이스 복귀')
   }
 
-  // XP 획득 → 레벨업 처리
+  // XP 획득 → 레벨업 처리 (delta 기반, 다른 set으로부터의 +2000 등을 덮어쓰지 않음)
   function XP획득(amount: number) {
     const 경험배수 = 보석보너스합산(보석Ref.current).경험배수
     let xp = 경험치Ref.current + Math.round(amount * 경험배수)
-    let lv = 캐릭레벨Ref.current
-    let pts = 잔여포인트Ref.current
-    const startLv = lv
-    while (xp >= 다음경험치(lv)) {
-      xp -= 다음경험치(lv)
-      lv++
-      pts++
+    let simLv = 캐릭레벨Ref.current
+    let lvDelta = 0
+    while (xp >= 다음경험치(simLv + lvDelta)) {
+      xp -= 다음경험치(simLv + lvDelta)
+      lvDelta++
     }
     set경험치(xp)
-    set캐릭레벨(lv)
-    set잔여포인트(pts)
-    if (lv > startLv) 메시지표시(`🎊 레벨업! Lv.${lv} (+${lv - startLv} 포인트)`)
+    if (lvDelta > 0) {
+      set캐릭레벨(prev => prev + lvDelta)
+      set잔여포인트(prev => prev + lvDelta)
+      메시지표시(`🎊 레벨업! +${lvDelta} (+${lvDelta} 포인트)`)
+    }
   }
 
   // 스탯 포인트 분배 (일반 스텟) — max/cost 메타 기반
