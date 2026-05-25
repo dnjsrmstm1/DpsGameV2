@@ -1202,7 +1202,7 @@ export default function App() {
   const _공격력배수r = (1 + _보주공격r + 업그레이드.공격력 * 0.03) * _보스공격력보너스r
   const _공속배수r = 1 + _보주공속r + 업그레이드.공속 * 0.02
   const _크리r = Math.min(0.95, _보주크리r)
-  const 사냥터캡 = 12 + Math.min(보스처치수, 10) * 4  // 12 시작 → 보스당 +4 → 최대 52
+  const 사냥터캡 = Math.min(48, 12 + 보스처치수 * 4)  // 12 시작 → 보스당 +4 → 최대 48
   const 보스존캡 = 8
   const _초월r = 초월스텟
   const _일반공업r = 일반스텟.유닛공업
@@ -1893,27 +1893,8 @@ export default function App() {
         })
       }
 
-      // 🌀 초월 ExP → 초월레벨 자동 승급 (원본 맵: 30만 레벨 달성 + ExP 누적)
-      // 판매ExP를 한 곳에서만 적용 + auto-level
-      // 비용: max(1000, 현재레벨 * 1000) — 초기 빠르게, 후반 점진적
-      if (판매ExP > 0 || ExPointRef.current >= 1000) {
-        let lv = 초월레벨Ref.current
-        let exp = ExPointRef.current + 판매ExP
-        let lvUp = 0
-        while (lvUp < 10000) {  // 안전 가드
-          const cost = Math.max(1000, lv * 1000)
-          if (exp < cost) break
-          exp -= cost
-          lv++
-          lvUp++
-        }
-        setExPoint(exp)
-        if (lvUp > 0) {
-          set초월레벨(lv)
-          set초월잔여포인트(p => p + lvUp)
-          메시지표시(`🌀 초월레벨 +${lvUp}! → Lv.${lv} (초월포인트 +${lvUp})`)
-        }
-      }
+      // ExPoint 자동 초월 승급 제거 (사용자 요청). ExP는 별도 재화로만 누적
+      if (판매ExP > 0) setExPoint(prev => prev + 판매ExP)
 
       if (추가공격수 > 0) {
         const 새공격수 = 총공격수Ref.current + 추가공격수
@@ -2996,26 +2977,6 @@ export default function App() {
             </TouchableOpacity>
           </View>
           <Text style={styles.prodSubtitle}>Lv.{캐릭레벨} · XP {경험치}/{다음경험치(캐릭레벨)} · 포인트 {잔여포인트} · 초월포인트 {초월잔여포인트}</Text>
-          {/* 각성의보석 → 초월포인트 교환 */}
-          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-            <TouchableOpacity
-              style={[styles.upgBtn, 각성의보석 < 10 && styles.upgBtnOff, { minWidth: 130 }]}
-              onPress={() => {
-                if (각성의보석Ref.current < 10) { 메시지표시('💎 각성의보석 10 필요'); return }
-                set각성의보석(p => p - 10)
-                set초월잔여포인트(p => p + 1)
-                메시지표시(`💎×10 → 🌀 초월 포인트 +1 (잔여 ${초월잔여포인트 + 1}P)`)
-              }}
-            >
-              <Text style={styles.upgBtnText}>💎×10 → 🌀+1</Text>
-            </TouchableOpacity>
-          </View>
-          {/* 초월 ExP 진행도 표시 */}
-          {(ExPoint > 0 || 초월레벨 > 0) && (
-            <Text style={[styles.prodSubtitle, { color: '#a855f7' }]}>
-              🌀 초월 Lv.{초월레벨} · ⭐ {숫자포맷(ExPoint)} / {숫자포맷(Math.max(1000, 초월레벨 * 1000))} ExP (자동승급)
-            </Text>
-          )}
           {/* 스텟 탭 (4종 통합: 일반/초월/보주/보석) */}
           <View style={{ flexDirection: 'row', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
             <TouchableOpacity
