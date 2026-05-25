@@ -329,9 +329,12 @@ function 자원배수(총DPS: number): number {
   return 128
 }
 
-// 캐릭터 레벨 — 다음 레벨 필요 경험치
+// 캐릭터 레벨 — 다음 레벨 필요 경험치. 30만 레벨까지 부드럽게 (polynomial)
+const 캐릭레벨최대 = 300000
 function 다음경험치(lv: number): number {
-  return Math.round(100 * Math.pow(1.35, lv - 1))
+  if (lv >= 캐릭레벨최대) return Infinity
+  // 100 * lv^2 → lv 1: 100, lv 1000: 1e8, lv 30만: 9e12
+  return Math.round(100 * lv * lv)
 }
 
 const 생산강도목록 = [1, 7, 11, 15, 18, 20, 22, 24, 26, 28, 30, 32] as const
@@ -692,9 +695,10 @@ const 보석max: Record<보석타입, number> = {
   재물: 200, 경험보석: 1000, 보호보석: 200, 궁극: 100, 수호: 1000, 초월보석: 350, 인내: 1000,
   강타: 100, 자동화: 100, 채광: 100,
 }
-// 동적 비용: cost = baseCost × (1 + 보유/10)
+// 동적 비용: cost = baseCost × (1 + 보유/10)² — quadratic 성장 (밸런스 강화)
 function 보석현재비용(종류: 보석타입, 보유: number): number {
-  return Math.floor(보석구입비용[종류] * (1 + 보유 / 10))
+  const m = 1 + 보유 / 10
+  return Math.floor(보석구입비용[종류] * m * m)
 }
 // 크리스탈 레벨업 비용 (보유 N개 소모 → 레벨 +1)
 // 등급별 max 레벨: 노말/레어=10, 유니크/퀘이사=20, 갤럭시/오리진=50
@@ -1119,11 +1123,11 @@ export default function App() {
   const _보주공속r = 보주합산(보주, '공속')
   const _보주자원r = 보주합산(보주, '자원')
   const _보주배수r = 보주합산(보주, '배수')
-  const _보스공격력보너스r = 1 + Math.min(보스처치수, 6) * 0.5  // 보스1=×1.5 ... 보스6=×4
+  const _보스공격력보너스r = 1 + Math.min(보스처치수, 10) * 0.5  // 보스1=×1.5 ... 보스10=×6
   const _공격력배수r = (1 + _보주공격r + 업그레이드.공격력 * 0.03) * _보스공격력보너스r
   const _공속배수r = 1 + _보주공속r + 업그레이드.공속 * 0.02
   const _크리r = Math.min(0.95, _보주크리r)
-  const 사냥터캡 = 12 + Math.min(보스처치수, 6) * 6  // 12 → 보스당 +6 → 최대 48
+  const 사냥터캡 = 12 + Math.min(보스처치수, 10) * 4  // 12 시작 → 보스당 +4 → 최대 52
   const 보스존캡 = 8
   const _초월r = 초월스텟
   const _일반공업r = 일반스텟.유닛공업
@@ -1306,13 +1310,13 @@ export default function App() {
       const 고유유닛스텟cur = 고유유닛Ref.current
       const 고유DPS = 고유유닛DPS(고유유닛스텟cur)
       const 초월lv = 초월레벨Ref.current
-      const 보스공격력보너스 = 1 + Math.min(보스처치수Ref.current, 6) * 0.5  // 보스1=×1.5 ... 보스6=×4
+      const 보스공격력보너스 = 1 + Math.min(보스처치수Ref.current, 10) * 0.5  // 보스1=×1.5 ... 보스10=×6
       const 공격력배수 = (1 + 보주공격 + upg.공격력 * 0.03) * 보스공격력보너스  // 유닛공업은 공격력() 내부에서 처리
       const 공속배수 = 1 + 보주공속 + upg.공속 * 0.02
       const 자원배수기여 = (1 + 보주자원 + upg.자원 * 0.05 + 스텟.돈수급량 * 0.03 + 보석b.자원배수추가) * (1 + 보주배수)
       const 속도 = Math.min(450, 기본이동속도 * (1 + 보주이속 + upg.이속 * 0.03))
       const 보스존캡 = 8
-      const 사냥터캡 = 12 + Math.min(보스처치수Ref.current, 6) * 6
+      const 사냥터캡 = 12 + Math.min(보스처치수Ref.current, 10) * 4
       const 평균크리 = Math.min(0.95, 보주크리)
       const 초월s = 초월스텟Ref.current
       const 효과DPS = (lv: number) => 공격력(lv, 초월s, 스텟.유닛공업) * 공격력배수 * 공격속도(lv) * 공속배수 * 연타수(lv) * (1 + 평균크리)
@@ -1559,13 +1563,14 @@ export default function App() {
             } else if (now - n.마지막공격시간 >= cd) {
               n.마지막공격시간 = now
               n.공격플래시Until = now + 150
-              추가공격수 += 1
               플래시적.push(적.id)
               // 보스존 데미지 floating (재화 X, gate만 본다)
               const isCrit = Math.random() < 평균크리
               // 보스 데미지 보너스 (초월스텟 보스데미지 +10%/pt)
               const 보스데미지배수 = 1  // 신규 초월스텟에 보스데미지 없음 (보스공격력보너스로 대체됨)
               const dmgShow = Math.round(공격력(n.lv, 초월s, 스텟.유닛공업) * 공격력배수 * 보스데미지배수 * 연타수(n.lv) * (isCrit ? 2 : 1))
+              // 타격수: 41강+ 데미지 그대로 반영, 미만은 +1
+              추가공격수 += n.lv >= 41 ? dmgShow : 1
               if (Math.random() < 0.4) {
                 const fid = dmgIdRef.current++
                 setDmg플로팅들(prev => [...prev.slice(-20), {
@@ -1617,7 +1622,8 @@ export default function App() {
               if (tier === 3) {
                 추가크레딧 += Math.max(1, Math.floor(dmg / 1000))
               }
-              추가공격수 += 1
+              // 타격수: 41강+ 데미지 그대로, 미만은 +1
+              추가공격수 += n.lv >= 41 ? Math.round(dmg) : 1
               플래시몹.push(target.id)
               몹데미지맵.set(target.id, (몹데미지맵.get(target.id) ?? 0) + dmg)
             }
@@ -1853,52 +1859,29 @@ export default function App() {
       if (플래시적.length > 0) {
         set적들(prev => prev.map(e => 플래시적.includes(e.id) ? { ...e, flashUntil: now + 150 } : e))
       }
-      // 보스 DPS gate 통과 시 처치 (6단계까지만, 7부터는 Extra Boss 모드)
-      if (보스처치수Ref.current < 6 && huntingDPS >= 보스게이트 && now - 보스킬쿨다운Ref.current >= 2000) {
+      // 보스 처치: 10단계까지만. 10보스 클리어 후 보스존 종료 (ExtraBoss 제거)
+      if (보스처치수Ref.current < 10 && huntingDPS >= 보스게이트 && now - 보스킬쿨다운Ref.current >= 2000) {
         보스킬쿨다운Ref.current = now
         const baseN = 보스처치수Ref.current
         set보스처치수(prev => prev + 1)
-        // 🔥 보스 클리어 → 일반레벨 +2000 (잔여포인트도 +2000)
-        set캐릭레벨(prev => prev + 2000)
-        set잔여포인트(prev => prev + 2000)
+        // 보스 클리어 → 레벨 +500 (잔여포인트도 +500)
+        set캐릭레벨(prev => prev + 500)
+        set잔여포인트(prev => prev + 500)
         if (Platform.OS !== 'web') Vibration.vibrate([0, 100, 50, 100])
-        // 환생 패시브: 보스 보상 배수
         const _보스배수 = 1 + (환생패시브['보스보상'] ?? 0) * 0.5
-        // 크리스탈조각 드랍 (보스번호 * 10)
         const 조각드랍 = Math.round((baseN + 1) * 10 * (1 + 보주합산(bj, '조각')) * _보스배수)
         set크리스탈조각(prev => prev + 조각드랍)
-        // 보스 처치 XP: 보스번호 * 200
         XP획득(Math.round((baseN + 1) * 200 * _보스배수))
-        // 크레딧 보상
         set크레딧(prev => prev + Math.round((10 + baseN * 5) * _보스배수))
-        // 각성의 보석 (3보스마다 1개 + 5% 확률 추가)
         const 각성드랍 = Math.floor((baseN + 1) / 3) + (Math.random() < 0.05 ? 1 : 0)
         if (각성드랍 > 0) set각성의보석(prev => prev + Math.round(각성드랍 * _보스배수))
-        // ExPoint (보스번호 * 100, 초월시스템용)
         setExPoint(prev => prev + Math.round((baseN + 1) * 100 * _보스배수))
-        // 🎉 Extra LV. VI (파티보스 6단계): 6보스마다 1회 보상
-        // 보상: 응무조 +20, 일반 XP 폭증, ExPoint 500
-        if ((baseN + 1) % 6 === 0) {
-          const 회 = extraVI받음Ref.current + 1
-          setExtraVI받음(회)
-          setExPoint(prev => prev + 500)
-          XP획득(500 * 3 * 100)
-          메시지표시(`🎉 Extra LV. VI (${회}회차) 클리어! ⭐+500 + 일반 XP 폭증`)
-        }
-        // Extra LV. XI: 11보스마다 1회 보상 (응무조 제거)
-        if ((baseN + 1) % 11 === 0) {
-          const 회 = extraXI받음Ref.current + 1
-          setExtraXI받음(회)
-          set크레딧(prev => prev + 2000000)
-          setExPoint(prev => prev + 2500)
-          메시지표시(`🎊 Extra LV. XI (${회}회차) 클리어! 💰+200만 ⭐+2500`)
-        }
         const 새보스 = baseN + 1
-        const 새배수 = 1 + Math.min(새보스, 6) * 0.5
-        if (새보스 >= 6) {
-          메시지표시(`🌌 6보스 전체 클리어! 공격력 ×${새배수.toFixed(1)} · Lv+2000 · Extra Boss 모드 진입! (타격수 마일스톤으로 보상)`)
+        const 새배수 = 1 + Math.min(새보스, 10) * 0.5
+        if (새보스 >= 10) {
+          메시지표시(`🌌 10보스 전체 클리어! 공격력 ×${새배수.toFixed(1)} · Lv+500 · 보스존 종료 (이후 타격수 시스템)`)
         } else {
-          메시지표시(`⚔️ 보스 ${새보스} 클리어! 공격력 ×${새배수.toFixed(1)} · Lv+2000 · 사냥터+6 🔮+${조각드랍}`)
+          메시지표시(`⚔️ 보스 ${새보스}/10 클리어! 공격력 ×${새배수.toFixed(1)} · Lv+500 · 사냥터+4 🔮+${조각드랍}`)
         }
       }
       // 자동 화면 전환 비활성 (사용자 선호: 수동 탭 전환)
@@ -2018,18 +2001,17 @@ export default function App() {
     if (초월레벨Ref.current < 10) return { ok: false, 이유: '초월레벨 10 필요' }
     return { ok: true, 이유: '' }
   }
-  function 환생보상크레딧(): number {
+  function 환생보상ExPoint(): number {
     return Math.floor(초월레벨Ref.current * 1000 + 총공격수Ref.current / 1e8)
   }
   function 환생실행() {
     const chk = 환생가능여부()
     if (!chk.ok) { 메시지표시(`⛔ 환생 불가: ${chk.이유}`); return }
-    const 보상 = 환생보상크레딧()
+    const 보상 = 환생보상ExPoint()
     if (typeof window !== 'undefined' && window.confirm) {
-      if (!window.confirm(`정말 환생할까요?\n\n보상: 💰 ${숫자포맷(보상)} 크레딧 + 환생레벨 +1\n\n[유지] 환생레벨, 환생패시브, 크레딧\n[리셋] 마린/재화/스텟/보주/크리스탈/보석/고유유닛/초월`)) return
+      if (!window.confirm(`정말 환생할까요?\n\n보상: ⭐ ${숫자포맷(보상)} ExPoint + 환생레벨 +1\n\n[유지] 환생레벨, 환생패시브, ExPoint\n[리셋] 마린/재화/스텟/보주/크리스탈/보석/고유유닛/초월/크레딧`)) return
     }
-    // 영구 유지 항목 기억
-    const 유지_크레딧 = 크레딧 + 보상
+    const 유지_ExPoint = ExPoint + 보상
     // 리셋 (게임초기화와 동일하지만 환생 항목 + 크레딧 보존)
     set마린들(초기마린들())
     setMineral(100 + (환생패시브['시작미네랄'] ?? 0) * 1000)
@@ -2042,7 +2024,7 @@ export default function App() {
     set캐릭레벨(1); set경험치(0); set잔여포인트(0)
     set일반스텟({ 돈수급량: 0, 유닛공업: 0, 가산1강: 0, 가산2강: 0, 가산3강: 0, 특수강화: 0, 가산1강2: 0, 가산2강2: 0, 가산3강2: 0, 특수강화2: 0, 특수파괴방지: 0, 특수파괴방지2: 0, 가산44강: 0, 가산45강: 0, 가산46강: 0, 가산47강: 0, 가산48강: 0 })
     set초월스텟({ ...초기초월스텟 })
-    set각성의보석(0); setExPoint(0); set은하조각(0); set자각보주(0)
+    set각성의보석(0); setExPoint(유지_ExPoint); set은하조각(0); set자각보주(0)
     // 패시브: 타격수 50% 유지
     const 타격수유지 = (환생패시브['타격수유지'] ?? 0) > 0
     if (!타격수유지) set타격수획득idx(0)
@@ -2050,7 +2032,7 @@ export default function App() {
     set명칭크리스탈({ ...초기명칭크리스탈 })
     set명칭크리스탈Lv({})
     set장착크리스탈([])
-    set크레딧(유지_크레딧)
+    set크레딧(0)
     set보석({ ...초기보석 })
     const _고유시작 = 환생패시브['고유유닛시작'] ?? 0
     set고유유닛({ ...초기고유유닛, 공격력: _고유시작, 추가1강: _고유시작, 특수강화: _고유시작 })
@@ -2162,10 +2144,10 @@ export default function App() {
     set크레딧(prev => prev - 비용)
     set고유유닛(prev => ({ ...prev, [stat]: (prev[stat] as number) + 1 }))
   }
-  // 고유유닛 사냥터 자동 라우팅: 26강+ 마린 존재시 사2, 아니면 사1. 사3 진입 X.
+  // 고유유닛 사냥터 1 고정 (사2/사3 진입 X)
   function 고유유닛위치변경() {
     // 수동 cycle 폐기 (자동 라우팅으로 대체) — 호출시 안내만
-    메시지표시('📍 고유유닛 위치는 26강+ 마린 등장시 자동 사2 이동')
+    메시지표시('📍 고유유닛 사냥터 1 고정')
   }
   // 단수업 비용: n→n+1 = n개 각성의돌 (각성의보석 자원 사용)
   function 단수업비용(현재단수: number): number { return 현재단수 }
@@ -2244,15 +2226,10 @@ export default function App() {
     메시지표시(`✓ ${강도}강 마린 생산!`)
   }
 
-  // ============================================
-  // 🦸 고유유닛 자동 사냥터 라우팅: 26강+ 마린 존재시 사2, 아니면 사1 (사3 진입 X)
+  // 고유유닛 사냥터 1 고정 (자동 라우팅 제거)
   useEffect(() => {
-    const has26plus = 마린들.some(m => m.lv >= 26)
-    const target: 1 | 2 = has26plus ? 2 : 1
-    if (고유유닛.위치 !== target) {
-      set고유유닛(prev => ({ ...prev, 위치: target }))
-    }
-  }, [마린들, 고유유닛.위치])
+    if (고유유닛.위치 !== 1) set고유유닛(prev => ({ ...prev, 위치: 1 }))
+  }, [고유유닛.위치])
 
   // 🌟 고유유닛 자동 단수업 (모든 강화 max + 각성의돌(=각성의보석) 보유시)
   useEffect(() => {
@@ -2955,7 +2932,7 @@ export default function App() {
                               onPress={() => 보주구입(종류, n)}
                             >
                               <Text style={[styles.upgBtnText, { fontSize: 10 }]}>+{n}</Text>
-                              <Text style={[styles.upgBtnText, { fontSize: 8, color: '#bbb' }]}>💠{단가 * n}</Text>
+                              <Text style={[styles.upgBtnText, { fontSize: 8, color: '#bbb' }]}>💠{숫자포맷(단가 * n)}</Text>
                             </TouchableOpacity>
                           ))}
                           <TouchableOpacity
@@ -3220,7 +3197,7 @@ export default function App() {
               DPS {숫자포맷(고유DPS현재)} (공격력 {고유유닛공격력(고유유닛)} × 속도 {고유유닛공속(고유유닛).toFixed(1)})
             </Text>
             <Text style={[styles.prodSubtitle, { color: '#a855f7' }]}>
-              위치: 사냥터 {고유유닛.위치} (26강+ 마린 등장시 자동 사2, 사3 진입 X)
+              위치: 사냥터 1 고정
             </Text>
             <Text style={[styles.prodSubtitle, { color: '#ff6ad9' }]}>
               🌟 단수 {고유유닛.단수}단 · Lv3 단가 ×{단수배율(고유유닛.단수).toFixed(2)} · 채광력 +{고유유닛.단수 - 1}
