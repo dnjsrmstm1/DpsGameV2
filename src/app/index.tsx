@@ -824,7 +824,7 @@ export default function App() {
   // 융합56: 56강 융합 확률 +1%p/pt
   // 보스데미지: Extra Boss 데미지 +10%/pt
   const [초월스텟, set초월스텟] = useState({ 추가초월확률: 0, 강화51_53: 0, 업그51_56: 0, 공격57_59: 0, 융합56: 0, 보스데미지: 0 })
-  const [스텟탭, set스텟탭] = useState<'일반' | '초월'>('일반')
+  const [스텟탭, set스텟탭] = useState<'일반' | '초월' | '보주' | '보석'>('일반')
   const [명칭크리스탈, set명칭크리스탈] = useState<명칭크리스탈목록>(() => ({ ...초기명칭크리스탈 }))
   const [장착크리스탈, set장착크리스탈] = useState<(keyof 명칭크리스탈목록)[]>([])
   const [명칭크리스탈패널열림, set명칭크리스탈패널열림] = useState(false)
@@ -2244,12 +2244,6 @@ export default function App() {
         <View style={styles.statRow}>
           <Text style={styles.stat}>💎 {숫자포맷(mineral)}</Text>
           <Text style={styles.statResource}>🔷 {숫자포맷(무색조각)}</Text>
-          <TouchableOpacity onPress={응축하기} style={styles.convertBtn}>
-            <Text style={styles.convertBtnText}>↑응축</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => set자동응축ON(v => !v)} style={[styles.convertBtn, { backgroundColor: 자동응축ON ? '#7ed957' : '#444' }]}>
-            <Text style={styles.convertBtnText}>{자동응축ON ? '자동✓' : '자동'}</Text>
-          </TouchableOpacity>
           <Text style={styles.statResource}>💠 {숫자포맷(응무조)}</Text>
         </View>
         <View style={styles.statRow}>
@@ -2321,27 +2315,15 @@ export default function App() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.smallBtn} onPress={() => {
           const v = !강화패널열림
-          set강화패널열림(v); if (v) { set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false); set고유유닛패널열림(false) }
+          set강화패널열림(v); if (v) { set생산패널열림(false); set자동패널열림(false); set명칭크리스탈패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
         }}>
           <Text style={styles.smallBtnText}>✨ 강화</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.smallBtn} onPress={() => {
-          const v = !보주패널열림
-          set보주패널열림(v); if (v) { set생산패널열림(false); set자동패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false); set고유유닛패널열림(false) }
-        }}>
-          <Text style={styles.smallBtnText}>⚔️ 보주</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.smallBtn} onPress={() => {
           const v = !명칭크리스탈패널열림
-          set명칭크리스탈패널열림(v); if (v) { set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set보석패널열림(false); set고유유닛패널열림(false) }
+          set명칭크리스탈패널열림(v); if (v) { set생산패널열림(false); set자동패널열림(false); set강화패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
         }}>
           <Text style={styles.smallBtnText}>🌟 크리스탈</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.smallBtn} onPress={() => {
-          const v = !보석패널열림
-          set보석패널열림(v); if (v) { set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set고유유닛패널열림(false) }
-        }}>
-          <Text style={styles.smallBtnText}>💎 보석</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.smallBtn} onPress={() => {
           const v = !고유유닛패널열림
@@ -2640,19 +2622,31 @@ export default function App() {
               🌀 초월 Lv.{초월레벨} · ⭐ {숫자포맷(ExPoint)} / {숫자포맷(Math.max(1000, 초월레벨 * 1000))} ExP (자동승급)
             </Text>
           )}
-          {/* 스텟 탭 */}
-          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+          {/* 스텟 탭 (4종 통합: 일반/초월/보주/보석) */}
+          <View style={{ flexDirection: 'row', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
             <TouchableOpacity
               style={[styles.statTabBtn, 스텟탭 === '일반' && styles.statTabBtnOn]}
               onPress={() => set스텟탭('일반')}
             >
-              <Text style={[styles.statTabText, 스텟탭 === '일반' && { color: '#000' }]}>일반 스텟</Text>
+              <Text style={[styles.statTabText, 스텟탭 === '일반' && { color: '#000' }]}>일반</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.statTabBtn, 스텟탭 === '초월' && styles.statTabBtnOn, 캐릭레벨 < 300000 && { opacity: 0.4 }]}
               onPress={() => set스텟탭('초월')}
             >
-              <Text style={[styles.statTabText, 스텟탭 === '초월' && { color: '#000' }]}>초월 스텟 {캐릭레벨 < 300000 ? '🔒' : ''}</Text>
+              <Text style={[styles.statTabText, 스텟탭 === '초월' && { color: '#000' }]}>초월{캐릭레벨 < 300000 ? '🔒' : ''}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.statTabBtn, 스텟탭 === '보주' && styles.statTabBtnOn]}
+              onPress={() => set스텟탭('보주')}
+            >
+              <Text style={[styles.statTabText, 스텟탭 === '보주' && { color: '#000' }]}>⚔️ 보주</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.statTabBtn, 스텟탭 === '보석' && styles.statTabBtnOn]}
+              onPress={() => set스텟탭('보석')}
+            >
+              <Text style={[styles.statTabText, 스텟탭 === '보석' && { color: '#000' }]}>💎 보석</Text>
             </TouchableOpacity>
           </View>
           <ScrollView style={{ maxHeight: 360 }}>
@@ -2693,6 +2687,91 @@ export default function App() {
                   </View>
                 )
               })
+            })()}
+            {/* 보주 탭 (응무조로 구입) */}
+            {스텟탭 === '보주' && (() => {
+              return (
+                <>
+                  <Text style={[styles.prodSubtitle, { color: '#bbb' }]}>💠 응무조 {숫자포맷(응무조)} · 누적 효과는 영구</Text>
+                  {보주종류목록.map(종류 => {
+                    const eff = 보주효과표[종류]
+                    const 개수 = 보주[종류]
+                    const 단가 = 보주구입비용[종류]
+                    const 현재효과 = (개수 * eff.값 * 100).toFixed(eff.값 < 0.02 ? 2 : 1)
+                    return (
+                      <View key={종류} style={styles.upgRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.upgLabel}>⚔️ {종류}의 보주 <Text style={{ color: '#f5a623' }}>×{개수}</Text></Text>
+                          <Text style={styles.upgEffect}>{eff.설명} · 현재 +{현재효과}%</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 3 }}>
+                          {[1, 10, 100].map(n => (
+                            <TouchableOpacity
+                              key={n}
+                              style={[styles.upgBtn, 응무조 < 단가 * n && styles.upgBtnOff, { minWidth: 38, paddingHorizontal: 4 }]}
+                              onPress={() => 보주구입(종류, n)}
+                            >
+                              <Text style={[styles.upgBtnText, { fontSize: 10 }]}>+{n}</Text>
+                              <Text style={[styles.upgBtnText, { fontSize: 8, color: '#bbb' }]}>💠{단가 * n}</Text>
+                            </TouchableOpacity>
+                          ))}
+                          <TouchableOpacity
+                            style={[styles.upgBtn, 응무조 < 단가 && styles.upgBtnOff, { backgroundColor: 응무조 >= 단가 ? '#7ed957' : '#444', minWidth: 38, paddingHorizontal: 4 }]}
+                            onPress={() => 보주최대구입(종류)}
+                          >
+                            <Text style={[styles.upgBtnText, { fontSize: 10, color: 응무조 >= 단가 ? '#000' : '#888' }]}>MAX</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )
+                  })}
+                </>
+              )
+            })()}
+            {/* 보석 탭 (무색조각으로 강화, 길게 누르면 연속) */}
+            {스텟탭 === '보석' && (() => {
+              const 보석정보in: { 종류: 보석타입; 이모지: string; 설명: string; 효과: string }[] = [
+                { 종류: '하급',    이모지: '🔸', 설명: '하급 강화의 보석',  효과: '44강 +0.1%/회' },
+                { 종류: '중급',    이모지: '🔶', 설명: '중급 강화의 보석',  효과: '45강 +0.1%/회' },
+                { 종류: '상급',    이모지: '💠', 설명: '상급 강화의 보석',  효과: '46강 +0.1%/회' },
+                { 종류: '특급',    이모지: '🔷', 설명: '특급 강화의 보석',  효과: '47강 +0.1%/회' },
+                { 종류: '고급',    이모지: '💎', 설명: '고급 강화의 보석',  효과: '48강 +0.05%/회' },
+                { 종류: '재물',    이모지: '💰', 설명: '재물의 보석',       효과: '자원 +10%/회' },
+                { 종류: '경험보석',이모지: '📗', 설명: '경험의 보석',       효과: '경험치 +10%/회' },
+                { 종류: '보호보석',이모지: '🛡️', 설명: '보호의 보석',       효과: '파괴방지 +0.1%/회' },
+                { 종류: '궁극',    이모지: '🌟', 설명: '궁극 강화의 보석',  효과: '44~47강 각 +0.01%/회' },
+                { 종류: '수호',    이모지: '🔮', 설명: '수호의 보석',       효과: '파괴방지 +0.01%/회' },
+                { 종류: '초월보석',이모지: '✨', 설명: '초월 강화의 보석',  효과: '44~48강 각 +0.01%/회' },
+                { 종류: '인내',    이모지: '🌀', 설명: '인내의 보석',       효과: '51강확률 +0.001%/회' },
+                { 종류: '강타',    이모지: '💥', 설명: '강타의 보석',       효과: '보스 동시처치 +1/회' },
+                { 종류: '자동화',  이모지: '🤖', 설명: '자동화 보석',       효과: '자동속도 +5%/회 (최대100%)' },
+                { 종류: '채광',    이모지: '⛏️', 설명: '채광의 보석',       효과: '자원배수 +5%/회' },
+                { 종류: '섬세',    이모지: '🔍', 설명: '섬세의 보석',       효과: '크레딧 +1%/회' },
+              ]
+              return (
+                <>
+                  <Text style={[styles.prodSubtitle, { color: '#bbb' }]}>🔷 무색조각 {숫자포맷(무색조각)} · 길게 눌러 연속 강화</Text>
+                  {보석정보in.map(({ 종류, 이모지, 설명, 효과 }) => {
+                    const 비용 = 보석구입비용[종류]
+                    const ok = 무색조각 >= 비용
+                    return (
+                      <View key={종류} style={styles.upgRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.upgLabel}>{이모지} {설명}</Text>
+                          <Text style={styles.upgEffect}>{효과}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.upgBtn, !ok && styles.upgBtnOff, { minWidth: 70 }]}
+                          onPressIn={() => 보석연속시작(종류)}
+                          onPressOut={보석연속종료}
+                        >
+                          <Text style={styles.upgBtnText}>🔷{숫자포맷(비용)}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )
+                  })}
+                </>
+              )
             })()}
             {/* 초월 스텟 */}
             {스텟탭 === '초월' && (
@@ -2736,53 +2815,6 @@ export default function App() {
                 )}
               </>
             )}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* 보주 패널 (응축된 무색조각으로 구입하여 영구 강화) */}
-      {보주패널열림 && (
-        <View style={styles.prodPanel}>
-          <View style={styles.prodHeader}>
-            <Text style={styles.prodTitle}>⚔️ 보주 (응무조로 영구 강화)</Text>
-            <TouchableOpacity onPress={() => set보주패널열림(false)}>
-              <Text style={styles.closeBtn}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.prodSubtitle}>💠 응무조 {숫자포맷(응무조)} · 누적 효과는 영구 적용</Text>
-          <ScrollView style={{ maxHeight: 340 }}>
-            {보주종류목록.map(종류 => {
-              const eff = 보주효과표[종류]
-              const 개수 = 보주[종류]
-              const 단가 = 보주구입비용[종류]
-              const 현재효과 = (개수 * eff.값 * 100).toFixed(eff.값 < 0.02 ? 2 : 1)
-              return (
-                <View key={종류} style={styles.upgRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.upgLabel}>⚔️ {종류}의 보주 <Text style={{ color: '#f5a623' }}>×{개수}</Text></Text>
-                    <Text style={styles.upgEffect}>{eff.설명} · 현재 +{현재효과}%</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 3 }}>
-                    {[1, 10, 100].map(n => (
-                      <TouchableOpacity
-                        key={n}
-                        style={[styles.upgBtn, 응무조 < 단가 * n && styles.upgBtnOff, { minWidth: 38, paddingHorizontal: 4 }]}
-                        onPress={() => 보주구입(종류, n)}
-                      >
-                        <Text style={[styles.upgBtnText, { fontSize: 10 }]}>+{n}</Text>
-                        <Text style={[styles.upgBtnText, { fontSize: 8, color: '#bbb' }]}>💠{단가 * n}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    <TouchableOpacity
-                      style={[styles.upgBtn, 응무조 < 단가 && styles.upgBtnOff, { backgroundColor: 응무조 >= 단가 ? '#7ed957' : '#444', minWidth: 38, paddingHorizontal: 4 }]}
-                      onPress={() => 보주최대구입(종류)}
-                    >
-                      <Text style={[styles.upgBtnText, { fontSize: 10, color: 응무조 >= 단가 ? '#000' : '#888' }]}>MAX</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )
-            })}
           </ScrollView>
         </View>
       )}
@@ -2889,60 +2921,6 @@ export default function App() {
                       }}
                     >
                       <Text style={[styles.upgBtnText, { color: 장착됨 ? '#000' : '#fff' }]}>{장착됨 ? '해제' : 슬롯가득 ? '🔒' : '장착'}</Text>
-                    </TouchableOpacity>
-                  </View>
-                )
-              })}
-            </ScrollView>
-          </View>
-        )
-      })()}
-
-      {/* 보석 패널 (강화 시스템 — 보유 수 표시 없음) */}
-      {보석패널열림 && (() => {
-        const 보석정보: { 종류: 보석타입; 이모지: string; 설명: string; 효과: string }[] = [
-          { 종류: '하급',    이모지: '🔸', 설명: '하급 강화의 보석',  효과: '44강 +0.1%/회' },
-          { 종류: '중급',    이모지: '🔶', 설명: '중급 강화의 보석',  효과: '45강 +0.1%/회' },
-          { 종류: '상급',    이모지: '💠', 설명: '상급 강화의 보석',  효과: '46강 +0.1%/회' },
-          { 종류: '특급',    이모지: '🔷', 설명: '특급 강화의 보석',  효과: '47강 +0.1%/회' },
-          { 종류: '고급',    이모지: '💎', 설명: '고급 강화의 보석',  효과: '48강 +0.05%/회' },
-          { 종류: '재물',    이모지: '💰', 설명: '재물의 보석',       효과: '자원 +10%/회' },
-          { 종류: '경험보석',이모지: '📗', 설명: '경험의 보석',       효과: '경험치 +10%/회' },
-          { 종류: '보호보석',이모지: '🛡️', 설명: '보호의 보석',       효과: '파괴방지 +0.1%/회' },
-          { 종류: '궁극',    이모지: '🌟', 설명: '궁극 강화의 보석',  효과: '44~47강 각 +0.01%/회' },
-          { 종류: '수호',    이모지: '🔮', 설명: '수호의 보석',       효과: '파괴방지 +0.01%/회' },
-          { 종류: '초월보석',이모지: '✨', 설명: '초월 강화의 보석',  효과: '44~48강 각 +0.01%/회' },
-          { 종류: '인내',    이모지: '🌀', 설명: '인내의 보석',       효과: '51강확률 +0.001%/회' },
-          { 종류: '강타',    이모지: '💥', 설명: '강타의 보석',       효과: '보스 동시처치 +1/회' },
-          { 종류: '자동화',  이모지: '🤖', 설명: '자동화 보석',       효과: '자동속도 +5%/회 (최대100%)' },
-          { 종류: '채광',    이모지: '⛏️', 설명: '채광의 보석',       효과: '자원배수 +5%/회' },
-          { 종류: '섬세',    이모지: '🔍', 설명: '섬세의 보석',       효과: '크레딧 +1%/회' },
-        ]
-        return (
-          <View style={styles.prodPanel}>
-            <View style={styles.prodHeader}>
-              <Text style={styles.prodTitle}>💎 보석 강화</Text>
-              <TouchableOpacity onPress={() => set보석패널열림(false)}>
-                <Text style={styles.closeBtn}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.prodSubtitle}>🔷 무색조각 {숫자포맷(무색조각)} · 탭하면 연속 강화</Text>
-            <ScrollView style={{ maxHeight: 340 }}>
-              {보석정보.map(({ 종류, 이모지, 설명, 효과 }) => {
-                const 비용 = 보석구입비용[종류]
-                const ok = 무색조각 >= 비용
-                return (
-                  <View key={종류} style={styles.upgRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.upgLabel}>{이모지} {설명}</Text>
-                      <Text style={styles.upgEffect}>{효과}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.upgBtn, !ok && styles.upgBtnOff, { minWidth: 70 }]}
-                      onPressIn={() => 보석연속시작(종류)}
-                      onPressOut={보석연속종료}
-                    >
-                      <Text style={styles.upgBtnText}>🔷{숫자포맷(비용)}</Text>
                     </TouchableOpacity>
                   </View>
                 )
