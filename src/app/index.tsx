@@ -1679,17 +1679,7 @@ export default function App() {
             } else {
               // 실패 페널티
               const r = 강화실패결과(m.lv, 스텟.특수파괴방지 + 스텟.특수파괴방지2 + 명칭보너스.파괴방지 + 보석b.파괴방지 + 고유유닛스텟cur.파괴방지)
-              // 51~55강 강화 실패 → 초월 ExP 보상 (원본 맵 string 502, 695-696, 822-823)
-              if (m.lv >= 51 && m.lv <= 55) {
-                const 초월exp표: Record<number, number> = { 51: 1, 52: 20, 53: 350, 54: 10000, 55: 160000 }
-                const exp획득 = 초월exp표[m.lv] ?? 0
-                if (exp획득 > 0) {
-                  setExPoint(prev => prev + exp획득)
-                  if (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 1000) {
-                    메시지표시(`💥 ${m.lv}강 강화 실패... ⭐ +${숫자포맷(exp획득)} 초월EXP`)
-                  }
-                }
-              }
+              // (51~55강 강화 실패 ExP 보상 제거 — 자동강화로 ExP 폭증해서 삭제)
               if (r.파괴) {
                 if (m.lv < 51 && (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 1000)) {
                   메시지표시(`💥 ${m.lv}강 마린 파괴!`)
