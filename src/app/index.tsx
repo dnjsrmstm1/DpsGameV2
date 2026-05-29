@@ -343,9 +343,9 @@ function 다음경험치(lv: number): number {
   // 10 * lv → lv 1: 10, lv 1000: 1만, lv 30만: 300만 (linear, 매우 부드러움)
   return Math.max(10, Math.round(10 * lv))
 }
-// 초월경험치 → 초월레벨업 필요량 (30만 레벨 도달 후). 초월lv 1당 1e6 증가
+// 초월경험치 → 초월레벨업 필요량 (30만 레벨 도달 후). 초월lv 1당 1e4 증가
 function 다음초월경험치(초월lv: number): number {
-  return 1000000 * Math.max(1, 초월lv)
+  return 10000 * Math.max(1, 초월lv)
 }
 // 51강 강화 1회 시도당 초월경험치
 const 강화51초월경험 = 1
@@ -2773,44 +2773,50 @@ export default function App() {
             <Text style={[styles.statSmall, { color: '#fff' }]}>💰 재화</Text>
           </TouchableOpacity>
         </View>
-        {재화패널열림 && (
-          <View style={{ marginTop: 6, padding: 6, backgroundColor: '#1a2030', borderRadius: 4, borderWidth: 1, borderColor: '#3a5a8a' }}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              <Text style={[styles.statSmall, { color: '#f5a623' }]}>📊 일반 스텟P: {숫자포맷(잔여포인트)}</Text>
-              <Text style={[styles.statSmall, { color: '#a855f7' }]}>🌀 초월 스텟P: {숫자포맷(초월잔여포인트)}</Text>
-              <Text style={[styles.statSmall, { color: '#4ec9ff' }]}>🔷 무색조각: {숫자포맷(무색조각)}</Text>
-              <Text style={[styles.statSmall, { color: '#7ed957' }]}>💠 응무조: {숫자포맷(응무조)}</Text>
-              <Text style={[styles.statSmall, { color: '#ff6ad9' }]}>💎 각성석: {숫자포맷(각성의보석)}</Text>
-              <Text style={[styles.statSmall, { color: '#9b59b6' }]}>🔮 크리스탈조각: {숫자포맷(크리스탈조각)}</Text>
-              <Text style={[styles.statSmall, { color: '#c44dff' }]}>🟣 상급조각: {숫자포맷(상급크리스탈조각)}</Text>
-              <Text style={[styles.statSmall, { color: '#f5a623' }]}>💰 크레딧: {숫자포맷(크레딧)}</Text>
-              <Text style={[styles.statSmall, { color: '#a855f7' }]}>⭐ ExPoint: {숫자포맷(ExPoint)}</Text>
-              {은하조각 > 0 && <Text style={[styles.statSmall, { color: '#4ec9ff' }]}>🌌 은하: {숫자포맷(은하조각)}</Text>}
-              {자각보주 > 0 && <Text style={[styles.statSmall, { color: '#f5a623' }]}>🔯 자각: {숫자포맷(자각보주)}</Text>}
-              {초월레벨 > 0 && <Text style={[styles.statSmall, { color: '#a855f7' }]}>🌀 초월Lv.{초월레벨}</Text>}
-              {초월레벨 > 0 && <Text style={[styles.statSmall, { color: '#c89bff' }]}>🌀 초월XP: {숫자포맷(초월경험치)}/{숫자포맷(다음초월경험치(초월레벨))}</Text>}
-              {환생레벨 > 0 && <Text style={[styles.statSmall, { color: '#ff6ad9' }]}>🌟 환생Lv.{환생레벨}</Text>}
-            </View>
-            {/* ExPoint → 크레딧 교환 */}
-            <View style={{ flexDirection: 'row', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-              {[1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000].map(n => (
-                <TouchableOpacity
-                  key={n}
-                  style={[styles.upgBtn, ExPoint < n && styles.upgBtnOff, { minWidth: 110, paddingHorizontal: 6 }]}
-                  onPress={() => {
-                    if (ExPointRef.current < n) { 메시지표시(`⭐ ExPoint ${n} 필요`); return }
-                    setExPoint(p => p - n)
-                    set크레딧(p => p + n * 100000)
-                    메시지표시(`⭐${n} → 💰${숫자포맷(n * 100000)} 크레딧`)
-                  }}
-                >
-                  <Text style={[styles.upgBtnText, { fontSize: 10 }]}>⭐{n} → 💰{숫자포맷(n * 100000)}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
       </View>
+
+      {재화패널열림 && (
+        <View style={styles.currencyPanel}>
+          <View style={styles.currencyHeader}>
+            <Text style={styles.currencyTitle}>💰 재화</Text>
+            <TouchableOpacity onPress={() => set재화패널열림(false)}>
+              <Text style={styles.closeBtn}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.currencyGrid}>
+            <Text style={[styles.currencyItem, { color: '#f5a623' }]}>📊 일반P {숫자포맷(잔여포인트)}</Text>
+            <Text style={[styles.currencyItem, { color: '#a855f7' }]}>🌀 초월P {숫자포맷(초월잔여포인트)}</Text>
+            <Text style={[styles.currencyItem, { color: '#f5a623' }]}>💰 크레딧 {숫자포맷(크레딧)}</Text>
+            <Text style={[styles.currencyItem, { color: '#a855f7' }]}>⭐ ExP {숫자포맷(ExPoint)}</Text>
+            <Text style={[styles.currencyItem, { color: '#4ec9ff' }]}>🔷 무색조각 {숫자포맷(무색조각)}</Text>
+            <Text style={[styles.currencyItem, { color: '#7ed957' }]}>💠 응무조 {숫자포맷(응무조)}</Text>
+            <Text style={[styles.currencyItem, { color: '#ff6ad9' }]}>💎 각성석 {숫자포맷(각성의보석)}</Text>
+            <Text style={[styles.currencyItem, { color: '#9b59b6' }]}>🔮 크리스탈 {숫자포맷(크리스탈조각)}</Text>
+            <Text style={[styles.currencyItem, { color: '#c44dff' }]}>🟣 상급조각 {숫자포맷(상급크리스탈조각)}</Text>
+            {은하조각 > 0 && <Text style={[styles.currencyItem, { color: '#4ec9ff' }]}>🌌 은하 {숫자포맷(은하조각)}</Text>}
+            {자각보주 > 0 && <Text style={[styles.currencyItem, { color: '#f5a623' }]}>🔯 자각 {숫자포맷(자각보주)}</Text>}
+            {초월레벨 > 0 && <Text style={[styles.currencyItem, { color: '#c89bff' }]}>🌀 초월Lv.{초월레벨} ({숫자포맷(초월경험치)}/{숫자포맷(다음초월경험치(초월레벨))})</Text>}
+            {환생레벨 > 0 && <Text style={[styles.currencyItem, { color: '#ff6ad9' }]}>🌟 환생Lv.{환생레벨}</Text>}
+          </View>
+          <Text style={styles.currencySection}>⭐ ExP → 💰 크레딧 (1:100,000)</Text>
+          <View style={styles.currencyBtnRow}>
+            {[1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000].map(n => (
+              <TouchableOpacity
+                key={n}
+                style={[styles.upgBtn, ExPoint < n && styles.upgBtnOff, { minWidth: 108, paddingHorizontal: 6 }]}
+                onPress={() => {
+                  if (ExPointRef.current < n) { 메시지표시(`⭐ ExPoint ${n} 필요`); return }
+                  setExPoint(p => p - n)
+                  set크레딧(p => p + n * 100000)
+                  메시지표시(`⭐${n} → 💰${숫자포맷(n * 100000)} 크레딧`)
+                }}
+              >
+                <Text style={[styles.upgBtnText, { fontSize: 10 }]}>⭐{n} → 💰{숫자포맷(n * 100000)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
 
       {/* 화면 전환 탭 */}
       <View style={styles.tabBar}>
@@ -4025,6 +4031,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButtonText: { color: '#7ed957', fontSize: 14, fontWeight: 'bold' },
+  currencyPanel: {
+    position: 'absolute',
+    top: 56,
+    left: 8,
+    right: 8,
+    backgroundColor: '#16213e',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#3a5a8a',
+    zIndex: 250,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 25,
+  },
+  currencyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#3a5a8a',
+  },
+  currencyTitle: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
+  currencyGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 6, columnGap: 12 },
+  currencyItem: { fontSize: 12, fontWeight: '600', width: '31%' },
+  currencySection: { color: '#a855f7', fontSize: 12, fontWeight: 'bold', marginTop: 10, marginBottom: 6 },
+  currencyBtnRow: { flexDirection: 'row', gap: 4, flexWrap: 'wrap' },
   prodPanel: {
     position: 'absolute',
     top: 260,  // 탭/버튼바 아래로 내려서 버튼바와 안 겹치게
