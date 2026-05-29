@@ -3052,8 +3052,8 @@ export default function App() {
         )}
 
         {/* 마린 (현재 화면에 있는 마린만) */}
-        {/* 내부계산모드: 강화중(자동강화 대상 lv 이하) 유닛 숨김, 강화 끝난 유닛만 표시 */}
-        {(내부계산모드 ? 화면마린들.filter(m => !(자동강화ON && m.lv <= 자동강화최대lv)) : 화면마린들).map(m => {
+        {/* 내부계산모드: 강화중 유닛 숨김(베이스만). 사냥터는 항상 전부 표시 */}
+        {((내부계산모드 && !is사냥터(현재화면)) ? 화면마린들.filter(m => !(자동강화ON && m.lv <= 자동강화최대lv)) : 화면마린들).map(m => {
           const selected = 선택ID.includes(m.id)
           const flash = m.공격플래시Until > now
           return (
@@ -4002,7 +4002,7 @@ const styles = StyleSheet.create({
   backButtonText: { color: '#7ed957', fontSize: 14, fontWeight: 'bold' },
   prodPanel: {
     position: 'absolute',
-    top: 205,  // 탭/버튼바 아래로 내려서 버튼 클릭 가능
+    top: 260,  // 탭/버튼바 아래로 내려서 버튼바와 안 겹치게
     left: 8,
     right: 8,
     backgroundColor: '#16213e',
@@ -4011,7 +4011,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#7ed957',
     zIndex: 100,
-    maxHeight: 화면H - 310,
+    maxHeight: 화면H - 360,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
