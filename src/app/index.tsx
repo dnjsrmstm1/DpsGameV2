@@ -1143,6 +1143,7 @@ export default function App() {
   const [누적강화성공, set누적강화성공] = useState(0)
   const [누적판매, set누적판매] = useState(0)
   const [최고마린lv, set최고마린lv] = useState(1)
+  const [융합누적, set융합누적] = useState(0)  // 56강 융합: 흡수한 55강 마린 누적 수
   // 자동화
   const [자동강화ON, set자동강화ON] = useState(false)
   const [자동강화최대lv, set자동강화최대lv] = useState(1)
@@ -1189,6 +1190,7 @@ export default function App() {
   const 초월레벨Ref = useRef(초월레벨); 초월레벨Ref.current = 초월레벨
   const 초월잔여포인트Ref = useRef(초월잔여포인트); 초월잔여포인트Ref.current = 초월잔여포인트
   const 초월경험치Ref = useRef(초월경험치); 초월경험치Ref.current = 초월경험치
+  const 융합누적Ref = useRef(융합누적); 융합누적Ref.current = 융합누적
   const 각성의보석Ref = useRef(각성의보석); 각성의보석Ref.current = 각성의보석
   const ExPointRef = useRef(ExPoint); ExPointRef.current = ExPoint
   const 은하조각Ref = useRef(은하조각); 은하조각Ref.current = 은하조각
@@ -1293,6 +1295,7 @@ export default function App() {
           if (typeof d.누적강화성공 === 'number') set누적강화성공(d.누적강화성공)
           if (typeof d.누적판매 === 'number') set누적판매(d.누적판매)
           if (typeof d.최고마린lv === 'number') set최고마린lv(d.최고마린lv)
+          if (typeof d.융합누적 === 'number') set융합누적(d.융합누적)
           if (typeof d.자동강화ON === 'boolean') set자동강화ON(d.자동강화ON)
           if (typeof d.자동강화최대lv === 'number') set자동강화최대lv(d.자동강화최대lv)
           if (typeof d.자동판매ON === 'boolean') set자동판매ON(d.자동판매ON)
@@ -1368,7 +1371,7 @@ export default function App() {
       각성의보석, ExPoint, 은하조각, 자각보주,
       타격수획득idx, extraVI받음, extraXI받음,
       환생레벨, 누적환생수, 환생패시브,
-      누적강화성공, 누적판매, 최고마린lv,
+      누적강화성공, 누적판매, 최고마린lv, 융합누적,
       자동강화ON, 자동강화최대lv, 자동판매ON, 자동판매lv, 자동구입강도, 자동구입ON, 자동구입배수,
       강화최초달성: Array.from(강화최초달성),
       마지막저장시간: Date.now(),
@@ -1383,7 +1386,7 @@ export default function App() {
       각성의보석, ExPoint, 은하조각, 자각보주,
       타격수획득idx, extraVI받음, extraXI받음,
       환생레벨, 누적환생수, 환생패시브,
-      누적강화성공, 누적판매, 최고마린lv,
+      누적강화성공, 누적판매, 최고마린lv, 융합누적,
       자동강화ON, 자동강화최대lv, 자동판매ON, 자동판매lv, 자동구입강도, 자동구입ON, 자동구입배수, 로드완료])
 
   // ============================================
@@ -1467,6 +1470,7 @@ export default function App() {
       let 추가미네랄 = 0  // 사냥터 mob 공격으로 획득
       let 추가크레딧 = 0  // 사냥터 3 (DPS측정기) 공격으로 획득
       let 추가초월경험 = 0  // 51강 강화 시도 + 52강+ 판매
+      let 융합소비수 = 0  // 이 tick에 56강 융합풀로 흡수된 55강 마린 수
       let 추가공격수 = 0
       let 잔여Mineral = currentMineral
       const 플래시적: number[] = []
@@ -1490,10 +1494,8 @@ export default function App() {
       const 기존사냥2수 = currentMarines.filter(m => m.location === 'hunting2').length
       const 기존사냥3수 = currentMarines.filter(m => m.location === 'hunting3').length
       let 사냥1추가 = 0, 사냥2추가 = 0, 사냥3추가 = 0
-      // 56강 융합 자원: 절약보주 1개당 -10 마리. 최소 1마리
+      // 56강 융합 필요수: 절약보주 1개당 -10 마리. 최소 1마리. 55강 마린을 누적 흡수해 도달 시 56강 1마리 생성
       const 융합필요수 = Math.max(1, 20000 - bj.절약 * 10)
-      const 융합소모IDs = new Set<number>()  // 이 tick에서 융합으로 제거될 55강 마린들
-      let 융합시도수행 = false  // tick당 1회만
       const 판매수집: { lv: number }[] = []
       // 판매 크레딧 비용 (강도별)
       const 판매크레딧비용Pre = (lv: number): number => {
@@ -1577,6 +1579,10 @@ export default function App() {
             }
             return { ...m, state: 'idle', dest: null }
           }
+          if (m.lv === 55) {
+            // 55강은 56강 융합 대기 — 판매 불가 (강화소에서 융합풀로 흡수)
+            return { ...m, state: 'idle', dest: null }
+          }
           // 크레딧 검증 — 부족하면 판매 취소 (마린 보존)
           const _cost = 판매크레딧비용Pre(m.lv)
           if (가용크레딧Tick < _cost) {
@@ -1629,19 +1635,10 @@ export default function App() {
               }
               return 새m
             }
-            // 56강 융합: 55강 마린은 다른 55강 마린 N개 + 본인 소모. tick당 1회.
+            // 56강 융합: 55강 마린은 강화소 도달 시 융합풀로 흡수(제거). tick 종료 후 누적 ≥ 융합필요수면 56강 생성.
             if (m.lv === 55) {
-              if (융합시도수행) return 새m  // 이미 이 tick에 시도됨, 대기
-              const 다른55후보 = currentMarines.filter(x => x.lv === 55 && x.id !== m.id && !융합소모IDs.has(x.id))
-              if (다른55후보.length < 융합필요수 - 1) {
-                // 부족 → 시도 안 함, 메시지 (저빈도)
-                if (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 3000) {
-                  메시지표시(`🔮 56강 융합 필요 55강 마린 ${숫자포맷(융합필요수)} (현재 ${다른55후보.length + 1})`)
-                }
-                return 새m
-              }
-              융합시도수행 = true
-              for (let i = 0; i < 융합필요수 - 1; i++) 융합소모IDs.add(다른55후보[i].id)
+              융합소비수++
+              return { ...새m, id: -1 }
             }
             const 강화가능 = (m.lv < 50) || (m.lv >= 51 && m.lv < 60)
             let 단계보주 = 0
@@ -1904,9 +1901,26 @@ export default function App() {
         for (const 등급 of r.박스) 판매크리스탈드랍.push(박스개봉(등급))
       }
       if (총소모크레딧 > 0) set크레딧(prev => prev - 총소모크레딧)
-      // id=-1 마린 제거 (판매소 도달 + 강화 실패 파괴)
-      const finalMarines = newMarines.filter(m => m.id !== -1 && !융합소모IDs.has(m.id))
-      set마린들(finalMarines)
+      // id=-1 마린 제거 (판매소 도달 + 강화 실패 파괴 + 56강 융합 흡수)
+      const finalMarines = newMarines.filter(m => m.id !== -1)
+      // 56강 융합: 흡수한 55강 누적 → 필요수 도달 시 56강 1마리씩 생성
+      let finalMarines2 = finalMarines
+      if (융합소비수 > 0) {
+        let 새융합누적 = 융합누적Ref.current + 융합소비수
+        let 융합완성수 = 0
+        while (새융합누적 >= 융합필요수) { 새융합누적 -= 융합필요수; 융합완성수++ }
+        if (융합완성수 > 0) {
+          let bc = finalMarines.filter(m => m.location === 'base').length
+          const 추가56: 마린[] = []
+          for (let i = 0; i < 융합완성수; i++) 추가56.push(새마린(56, 베이스시작위치(bc + i), 'base'))
+          finalMarines2 = [...finalMarines, ...추가56]
+          set누적강화성공(p => p + 융합완성수)
+          set최고마린lv(p => Math.max(p, 56))
+          메시지표시(`🔮 56강 융합 성공! +${융합완성수}마리 (누적 ${숫자포맷(융합필요수)})`)
+        }
+        set융합누적(새융합누적)
+      }
+      set마린들(finalMarines2)
 
       // 자동 구입 (총 마린 1000 미만). 배수만큼 한 tick에 일괄 구입
       const 총마린수예상 = currentMarines.length - 판매수집.length
@@ -2256,7 +2270,7 @@ export default function App() {
     set초월레벨(0)
     set초월잔여포인트(0)
     set초월경험치(0)
-    set누적강화성공(0); set누적판매(0); set최고마린lv(1)
+    set누적강화성공(0); set누적판매(0); set최고마린lv(1); set융합누적(0)
     set몹들(초기몹들())
     // 패시브: 자동강화 시작 해금
     const 자동해금 = (환생패시브['자동강화시작'] ?? 0) > 0
@@ -2716,7 +2730,7 @@ export default function App() {
     set초월레벨(0)
     set초월잔여포인트(0)
     set초월경험치(0)
-    set누적강화성공(0); set누적판매(0); set최고마린lv(1)
+    set누적강화성공(0); set누적판매(0); set최고마린lv(1); set융합누적(0)
     set환생레벨(0); set누적환생수(0); set환생패시브({})
     set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false)
     set보석패널열림(false); set고유유닛패널열림(false); set환생패널열림(false)
@@ -3145,6 +3159,9 @@ export default function App() {
             </TouchableOpacity>
           </View>
           <Text style={styles.prodSubtitle}>Lv.{캐릭레벨} · {캐릭레벨 >= 캐릭레벨최대 ? (초월레벨 > 0 ? `초월XP ${숫자포맷(초월경험치)}/${숫자포맷(다음초월경험치(초월레벨))}` : `MAX (초월 미해금)`) : `XP ${경험치}/${다음경험치(캐릭레벨)}`} · 포인트 {잔여포인트} · 초월포인트 {초월잔여포인트}</Text>
+          {(최고마린lv >= 55 || 융합누적 > 0) && (
+            <Text style={[styles.prodSubtitle, { color: '#c89bff' }]}>🔮 56강 융합 누적: {숫자포맷(융합누적)} / {숫자포맷(Math.max(1, 20000 - 보주.절약 * 10))} (55강 마린이 강화소 도달 시 흡수)</Text>
+          )}
           {/* 스텟 탭 (4종 통합: 일반/초월/보주/보석) */}
           <View style={{ flexDirection: 'row', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
             <TouchableOpacity
