@@ -336,12 +336,13 @@ function 자원배수(총DPS: number): number {
   return 128
 }
 
-// 캐릭터 레벨 — 다음 레벨 필요 경험치. 30만 레벨까지. 사용자 요청 대폭 감소
+// 캐릭터 레벨 — 다음 레벨 필요 경험치. 30만 레벨까지.
+// 계산기(뉴비용.xlsx DB1!A열=레벨별 누적 필요경험치)와 완전 일치: lv→lv+1 = 3*lv*(lv-1)+10
+// (검증: lv1→2=10, 2→3=16, 4→5=46, 99→100=29116, 1000→1001=2997010)
 const 캐릭레벨최대 = 300000
 function 다음경험치(lv: number): number {
   if (lv >= 캐릭레벨최대) return Infinity
-  // 10 * lv → lv 1: 10, lv 1000: 1만, lv 30만: 300만 (linear, 매우 부드러움)
-  return Math.max(10, Math.round(10 * lv))
+  return 3 * lv * (lv - 1) + 10
 }
 // 초월경험치 → 초월레벨업 필요량 (30만 레벨 도달 후). 초월lv 1당 100 증가
 function 다음초월경험치(초월lv: number): number {
@@ -1057,8 +1058,17 @@ export default function App() {
   // 확대를 막아야 측정 오차(뷰포트W가 실제보다 크게 읽히는 경우)에도 가로 오버플로가 안 생김.
   const { width: 뷰포트W } = useWindowDimensions()
   const 컬럼W = 필드_W + 8
-  const 화면맞춤배율 = Math.min(뷰포트W / 컬럼W, 1)
+  // useWindowDimensions가 간헐적으로 비정상값(~1px)을 반환 → 배율이 미세해져 화면이 쪼그라드는 버그 방지.
+  // 100px 미만이면 신뢰 불가로 보고 로드시점 화면폭(화면W)으로 폴백.
+  const 안전뷰포트W = 뷰포트W > 100 ? 뷰포트W : 화면W
+  const 화면맞춤배율 = Math.min(안전뷰포트W / 컬럼W, 1)
   const 배율Ref = useRef(화면맞춤배율); 배율Ref.current = 화면맞춤배율
+  // 축소가 실제로 필요할 때만(좁은 화면) scale/zoom 적용. PC(배율≈1)에선 zoom 미적용 → 원래 레이아웃 그대로(레이아웃 깨짐 방지)
+  const 화면맞춤스타일: any = 화면맞춤배율 >= 0.999
+    ? null
+    : Platform.OS === 'web'
+      ? { zoom: 화면맞춤배율 }
+      : { transform: [{ scale: 화면맞춤배율 }] }
 
   const [현재화면, set현재화면] = useState<화면>('base')
   const [마린들, set마린들] = useState<마린[]>(() => 초기마린들())
@@ -2749,11 +2759,7 @@ export default function App() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#1a1a2e' }} edges={['top']}>
     <ScrollView
-      contentContainerStyle={[
-        styles.container,
-        // @ts-ignore 웹: zoom은 레이아웃 footprint까지 축소 → 가로 스크롤 안 생김
-        Platform.OS === 'web' ? { zoom: 화면맞춤배율 } : { transform: [{ scale: 화면맞춤배율 }] },
-      ]}
+      contentContainerStyle={[styles.container, 화면맞춤스타일]}
       bounces={false}
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
@@ -3549,10 +3555,11 @@ export default function App() {
                       </TouchableOpacity>
                       {!maxed && (
                         <TouchableOpacity
-                          style={[styles.upgBtn, { backgroundColor: '#7ed957', minWidth: 50, paddingHorizontal: 4 }]}
+                          style={[styles.upgBtn, { backgroundColor: '#7ed957', minWidth: 50, paddingHorizontal: 4 }, !ok && styles.upgBtnOff]}
                           onPress={() => 고유유닛강화MAX(stat)}
+                          disabled={!ok}
                         >
-                          <Text style={[styles.upgBtnText, { color: '#000', fontSize: 10 }]}>MAX</Text>
+                          <Text style={[styles.upgBtnText, { color: ok ? '#000' : '#888', fontSize: 10 }]}>MAX</Text>
                         </TouchableOpacity>
                       )}
                     </View>
