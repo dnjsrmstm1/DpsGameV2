@@ -2803,7 +2803,7 @@ export default function App() {
             </View>
             {/* ExPoint → 크레딧 교환 */}
             <View style={{ flexDirection: 'row', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-              {[1, 10, 100, 1000].map(n => (
+              {[1, 10, 100, 1000, 10000, 100000].map(n => (
                 <TouchableOpacity
                   key={n}
                   style={[styles.upgBtn, ExPoint < n && styles.upgBtnOff, { minWidth: 110, paddingHorizontal: 6 }]}
