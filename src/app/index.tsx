@@ -2977,8 +2977,8 @@ export default function App() {
           </View>
         )}
 
-        {/* 내부 계산 모드 — 렌더 스킵 */}
-        {!내부계산모드 && is사냥터(현재화면) && 몹들.filter(mb => {
+        {/* 사냥터 몹은 내부계산모드여도 항상 표시 (마린과 동일, line 3101 참고) */}
+        {is사냥터(현재화면) && 몹들.filter(mb => {
           const screenTier = 현재화면 === 'hunting1' ? 1 : 현재화면 === 'hunting2' ? 2 : 3
           return mb.티어 === screenTier
         }).map(mb => {
