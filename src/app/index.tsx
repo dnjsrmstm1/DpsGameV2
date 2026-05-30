@@ -2093,18 +2093,15 @@ export default function App() {
         const 배수 = 자동구입배수Ref.current
         const 가용 = 잔여Mineral + 추가미네랄
         const 슬롯여유 = 1000 - 총마린수예상
-        const 증식 = 10  // 증식: 1회 구입당 유닛 10마리 생성 (항상 켜짐)
-        // 구입 수량 = 배수, 사용 금액 = cost × 배수² (배수 2배=4배, 3배=9배 …). 생성 = 구입수 × 증식
-        const 슬롯구매한도 = Math.floor(슬롯여유 / 증식)
-        const 구입가능 = Math.min(배수, 슬롯구매한도, Math.floor(Math.sqrt(가용 / cost)))
-        if (구입가능 > 0) {
+        // 선형 구입: 1마리당 cost. 구입수 = min(배수, 슬롯여유, 살 수 있는 만큼). 비용 = cost × 구입수.
+        const 구입수 = Math.min(배수, 슬롯여유, Math.floor(가용 / cost))
+        if (구입수 > 0) {
           자동구입타이머Ref.current = now
-          잔여Mineral -= cost * 구입가능 * 구입가능
-          const 생성수 = 구입가능 * 증식
+          잔여Mineral -= cost * 구입수
           set마린들(prev => {
             let bc = prev.filter(m => m.location === 'base').length
             const 추가: 마린[] = []
-            for (let i = 0; i < 생성수; i++) 추가.push(새마린(lv, 베이스시작위치(bc + i), 'base'))
+            for (let i = 0; i < 구입수; i++) 추가.push(새마린(lv, 베이스시작위치(bc + i), 'base'))
             return [...prev, ...추가]
           })
         }
