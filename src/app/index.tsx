@@ -1318,7 +1318,7 @@ export default function App() {
     + 고유유닛.특수강화 * 0.005 + _보석b_r.궁극보너스
   const 고유일반보너스r = 고유유닛.추가1강 * 0.0025  // 일반확률(+1)에만 적용
   // 정보 패널: 강화 단계별 확률·판매 정보 (현재 스텟/보너스 반영, 강화시도() 로직 기준)
-  const 강화단계정보 = (lv: number): { 타입: string; 확률: string[]; 판매: string; 구입: number; 공격력: number; 공속: string; dps: number; 판매획득: string } => {
+  const 강화단계정보 = (lv: number): { 타입: string; 확률: string[]; 판매: string; 구입: number; 공격력: number; 공속: string; dps: number; 판매획득: string; 내역: string[] } => {
     const 외부 = 현재외부강화보너스
     const 일반보 = 고유일반보너스r  // 일반확률(+1)에만
     const s = 일반스텟
@@ -1373,7 +1373,36 @@ export default function App() {
     else if (lv >= 45 && lv <= 50) 판매획득 = '🔷 무색조각 + 확률 드랍(크레딧·각성석 등)'
     else if (lv >= 52) 판매획득 = '🌀 초월XP·조각·박스 등 (확률 드랍)'
     else 판매획득 = '없음'
-    return { 타입, 확률, 판매, 구입: lv >= 1 && lv <= 56 ? 생산비용(lv) : 0, 공격력: 공당, 공속: 공속초.toFixed(2) + '/초', dps, 판매획득 }
+    // 강화확률 기여 내역 (어떤 항목이 이 단계 확률을 얼마나 올렸는지)
+    const 내역: string[] = []
+    const push = (라벨: string, v: number) => { if (v > 1e-9) 내역.push(`${라벨}  +${(v * 100).toFixed(3)}%`) }
+    if (lv < 50 || (lv >= 51 && lv <= 59)) {  // 50강(초월시도)·60강 제외
+      // 공통(외부) — 모든 강화확률에 적용
+      push('⚔️ 보주(강화)', 보주합산(보주, '강화'))
+      push('🔧 업그레이드(강화확률)', 업그레이드.강화확률 * 0.005)
+      push('🏅 명칭크리스탈(개별)', _명칭보너스r.개별확률)
+      push('💎 보석(궁극)', _보석b_r.궁극보너스)
+      push('🦸 고유유닛(특수강화)', 고유유닛.특수강화 * 0.005)
+      // 단계 타입별 추가
+      if (lv <= 37) { push('🦸 고유유닛(추가1강·일반)', 일반보); push('📊 스텟(가산1강)', (s.가산1강 + s.가산1강2) * 0.001); push('⚡ 스텟(특수강화)', 특수가산) }
+      else if (lv <= 39) { push('🦸 고유유닛(추가1강·일반)', 일반보); push('📊 스텟(가산1~3강)', (s.가산1강 + s.가산1강2 + s.가산2강 + s.가산2강2 + s.가산3강 + s.가산3강2) * 0.001); push('⚡ 스텟(특수강화)', 특수가산) }
+      else if (lv <= 43) push('⚡ 스텟(특수강화)', 특수가산)
+      else if (lv <= 47) push(`📊 스텟(가산${lv}강)`, [s.가산44강, s.가산45강, s.가산46강, s.가산47강][lv - 44] * 0.001)
+      else if (lv === 48) push('📊 스텟(가산48강)', s.가산48강 * 0.0005)
+      else if (lv >= 51) {
+        let tb = 0
+        if (lv === 51) tb = (ts.추가51강 || 0) * 0.001
+        else if (lv === 52) tb = (ts.추가52강 || 0) * 0.001
+        else if (lv === 53) tb = (ts.추가53강 || 0) * 0.001
+        else if (lv === 54) tb = (ts.추가54강 || 0) * 0.0001 + (ts.추가54강2 || 0) * 0.0005
+        else if (lv === 55) tb = (ts.추가55강 || 0) * 0.0001 + (ts.추가55강2 || 0) * 0.0002
+        else if (lv === 56) tb = (ts.추가융합 || 0) * 0.001
+        else if (lv === 57) tb = (ts.추가57강 || 0) * 0.001
+        else if (lv === 58) tb = (ts.추가58강 || 0) * 0.001
+        push('🌀 초월스텟(단계별)', tb)
+      }
+    }
+    return { 타입, 확률, 판매, 구입: lv >= 1 && lv <= 56 ? 생산비용(lv) : 0, 공격력: 공당, 공속: 공속초.toFixed(2) + '/초', dps, 판매획득, 내역 }
   }
   const _보스공격력보너스r = 1 + Math.min(보스처치수, 10) * 0.5  // 보스1=×1.5 ... 보스10=×6
   const _공격력배수r = (1 + _보주공격r + 업그레이드.공격력 * 0.03) * _보스공격력보너스r
@@ -3095,7 +3124,16 @@ export default function App() {
                   {info.확률.map((line, i) => (
                     <Text key={i} style={{ color: '#cfd6e4', fontSize: 14, lineHeight: 20 }}>{line}</Text>
                   ))}
-                  <Text style={{ color: '#888', fontSize: 9, marginTop: 2 }}>※ 현재 외부 강화보너스 +{(현재외부강화보너스 * 100).toFixed(2)}% 포함(보주·업글·명칭·보석). 고유유닛 추가1강은 일반확률에만.</Text>
+                  {info.내역.length > 0 ? (
+                    <>
+                      <Text style={{ color: '#7ed957', fontSize: 11, marginTop: 4 }}>📈 확률 올린 항목:</Text>
+                      {info.내역.map((line, i) => (
+                        <Text key={i} style={{ color: '#cfd6e4', fontSize: 11 }}>· {line}</Text>
+                      ))}
+                    </>
+                  ) : (
+                    <Text style={{ color: '#888', fontSize: 10, marginTop: 4 }}>확률 올린 추가 항목 없음 (기본 확률만)</Text>
+                  )}
 
                   <Text style={styles.currencySection}>⚔️ 유닛 전투 (현재 버프 반영)</Text>
                   <Text style={{ color: '#cfd6e4', fontSize: 14 }}>공격력(공당): {숫자포맷(info.공격력)}</Text>
