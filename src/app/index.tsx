@@ -134,7 +134,8 @@ const 초월스텟표: 초월스텟메타[] = [
 // 보석p: 레벨별 보석 추가 확률
 type 보석p타입 = { add44: number; add45: number; add46: number; add47: number; add48: number }
 const 빈보석p: 보석p타입 = { add44: 0, add45: 0, add46: 0, add47: 0, add48: 0 }
-function 강화시도(단계: number, 스텟: 강화스텟, 외부p1: number = 0, 보석p: 보석p타입 = 빈보석p, 초월s?: 초월스텟타입): number {
+// 일반p1: 일반확률(1~39강 +1)에만 더해지는 보너스 (고유유닛 추가1강 등). 개별/특수/고정/초월엔 미적용.
+function 강화시도(단계: number, 스텟: 강화스텟, 외부p1: number = 0, 보석p: 보석p타입 = 빈보석p, 초월s?: 초월스텟타입, 일반p1: number = 0): number {
   if (단계 >= 60) return 0  // 60강 = MAX
   if (단계 === 50) return 0  // 50→51은 초월 시스템 별도
   const r = Math.random()
@@ -184,13 +185,13 @@ function 강화시도(단계: number, 스텟: 강화스텟, 외부p1: number = 0
       base * 1.11
       + (스텟.가산1강 + 스텟.가산1강2 + 스텟.가산2강 + 스텟.가산2강2 + 스텟.가산3강 + 스텟.가산3강2) * 0.001
       + 특수가산
-      + 외부p1)
+      + 외부p1 + 일반p1)
     return r < p1 ? 1 : 0
   }
   // 1~37강: +1/+2/+3 분리 (일반확률 + 특수확률)
   const p3 = Math.min(0.95, base / 100 + (스텟.가산3강 + 스텟.가산3강2) * 0.001 + 특수가산)
   const p2 = Math.min(0.95, base / 10  + (스텟.가산2강 + 스텟.가산2강2) * 0.001 + 특수가산)
-  const p1 = Math.min(0.95, base       + (스텟.가산1강 + 스텟.가산1강2) * 0.001 + 특수가산 + 외부p1)
+  const p1 = Math.min(0.95, base       + (스텟.가산1강 + 스텟.가산1강2) * 0.001 + 특수가산 + 외부p1 + 일반p1)
   if (r < p3) return 3
   if (r < p3 + p2) return 2
   if (r < p3 + p2 + p1) return 1
@@ -1314,10 +1315,12 @@ export default function App() {
   const _명칭보너스r = 명칭크리스탈보너스(명칭크리스탈Lv, 장착크리스탈)
   const _보석b_r = 보석보너스합산(보석)
   const 현재외부강화보너스 = 보주합산(보주, '강화') + 업그레이드.강화확률 * 0.005 + _명칭보너스r.개별확률
-    + 고유유닛.추가1강 * 0.0025 + 고유유닛.특수강화 * 0.005 + _보석b_r.궁극보너스
+    + 고유유닛.특수강화 * 0.005 + _보석b_r.궁극보너스
+  const 고유일반보너스r = 고유유닛.추가1강 * 0.0025  // 일반확률(+1)에만 적용
   // 정보 패널: 강화 단계별 확률·판매 정보 (현재 스텟/보너스 반영, 강화시도() 로직 기준)
-  const 강화단계정보 = (lv: number): { 타입: string; 확률: string[]; 판매: string; 구입: number } => {
+  const 강화단계정보 = (lv: number): { 타입: string; 확률: string[]; 판매: string; 구입: number; 공격력: number; 공속: string; dps: number; 판매획득: string } => {
     const 외부 = 현재외부강화보너스
+    const 일반보 = 고유일반보너스r  // 일반확률(+1)에만
     const s = 일반스텟
     const ts: any = 초월스텟
     const 특수가산 = (s.특수강화 + s.특수강화2) * 0.001
@@ -1348,18 +1351,29 @@ export default function App() {
     else if (lv >= 38) {
       const base = 강화확률표[lv] ?? 0
       const g = (s.가산1강 + s.가산1강2 + s.가산2강 + s.가산2강2 + s.가산3강 + s.가산3강2) * 0.001
-      타입 = '일반 확률 (+1)'; 확률 = [`+1 ${pct(base * 1.11 + g + 특수가산 + 외부)}`]
+      타입 = '일반 확률 (+1)'; 확률 = [`+1 ${pct(base * 1.11 + g + 특수가산 + 외부 + 일반보)}`]
     }
     else {
       const base = 강화확률표[lv] ?? 0
       const p3 = base / 100 + (s.가산3강 + s.가산3강2) * 0.001 + 특수가산
       const p2 = base / 10 + (s.가산2강 + s.가산2강2) * 0.001 + 특수가산
-      const p1 = base + (s.가산1강 + s.가산1강2) * 0.001 + 특수가산 + 외부
+      const p1 = base + (s.가산1강 + s.가산1강2) * 0.001 + 특수가산 + 외부 + 일반보
       타입 = '일반 확률 (+1/+2/+3)'; 확률 = [`+1 ${pct(p1)}`, `+2 ${pct(p2)}`, `+3 ${pct(p3)}`]
     }
     const sc = 판매크레딧비용(lv)
     const 판매 = lv === 51 ? '판매 불가' : (sc === 0 ? '무료' : `💰 ${숫자포맷(sc)}`)
-    return { 타입, 확률, 판매, 구입: lv >= 1 && lv <= 56 ? 생산비용(lv) : 0 }
+    // 유닛 전투 수치 (현재 버프 반영)
+    const 공당 = Math.round(공격력(lv, _초월r, _일반공업r) * _공격력배수r)
+    const 공속초 = 공격속도(lv) * _공속배수r * 연타수(lv)
+    const dps = Math.round(공당 * 공속초 * (1 + _크리r))
+    // 판매 시 획득 (결정값만; 45강+는 확률 드랍 별도)
+    let 판매획득 = ''
+    if (lv === 51) 판매획득 = '판매 불가'
+    else if (판매일반XP표[lv] != null) 판매획득 = `⭐ 경험치 ${숫자포맷(판매일반XP표[lv])}`
+    else if (lv >= 45 && lv <= 50) 판매획득 = '🔷 무색조각 + 확률 드랍(크레딧·각성석 등)'
+    else if (lv >= 52) 판매획득 = '🌀 초월XP·조각·박스 등 (확률 드랍)'
+    else 판매획득 = '없음'
+    return { 타입, 확률, 판매, 구입: lv >= 1 && lv <= 56 ? 생산비용(lv) : 0, 공격력: 공당, 공속: 공속초.toFixed(2) + '/초', dps, 판매획득 }
   }
   const _보스공격력보너스r = 1 + Math.min(보스처치수, 10) * 0.5  // 보스1=×1.5 ... 보스10=×6
   const _공격력배수r = (1 + _보주공격r + 업그레이드.공격력 * 0.03) * _보스공격력보너스r
@@ -1734,7 +1748,8 @@ export default function App() {
             const 초월51_53보너스 = 0  // 신규 초월스텟에서는 강화시도() 내부에서 단계별 처리
             // 초월 56강 융합확률 보너스 (56강 적용)
             const 초월56융합 = 0  // 신규 초월스텟에서 강화시도() 내부 처리
-            const 외부강화보너스 = 보주강화 + upg.강화확률 * 0.005 + 명칭보너스.개별확률 + 고유유닛스텟cur.추가1강 * 0.0025 + 고유유닛스텟cur.특수강화 * 0.005 + 초월51_53보너스 + 초월56융합 + 보석b.궁극보너스
+            const 외부강화보너스 = 보주강화 + upg.강화확률 * 0.005 + 명칭보너스.개별확률 + 고유유닛스텟cur.특수강화 * 0.005 + 초월51_53보너스 + 초월56융합 + 보석b.궁극보너스
+            const 고유일반보너스 = 고유유닛스텟cur.추가1강 * 0.0025  // 일반확률(+1)에만 적용
             // 50강 → 51강 초월 시도 (base 0.5% + 누적). 51강 도달은 초월시스템과 무관 (30만렙만 unlock)
             if (m.lv === 50) {
               const 추가 = (초월스텟Ref.current.추가초월확률 + 명칭보너스.초월확률 + 초월lv) * 0.00001 + 보석b.초월확률추가
@@ -1770,7 +1785,7 @@ export default function App() {
               if (eff.타입 === `강화${m.lv}`) 단계보주 += cnt * eff.값
               if (eff.타입 === '강화54_55' && (m.lv === 54 || m.lv === 55)) 단계보주 += cnt * eff.값
             }
-            const 증가 = 강화가능 ? 강화시도(m.lv, 스텟, 외부강화보너스 + 단계보주, 보석b, 초월s) : 0
+            const 증가 = 강화가능 ? 강화시도(m.lv, 스텟, 외부강화보너스 + 단계보주, 보석b, 초월s, 고유일반보너스) : 0
             if (m.lv === 51) 추가초월경험 += 강화51초월경험  // 51강 강화 시도 1회당 초월경험치
             if (증가 > 0) {
               새m.lv = m.lv + 증가
@@ -2361,6 +2376,9 @@ export default function App() {
     set마린들(초기마린들())
     set선택ID([])
     set현재화면('base')
+    setMineral(0)            // 미네랄 0으로
+    set총공격수(0)           // 타격수(총공격수) 0으로
+    set타격수획득idx(0)      // 타격 마일스톤 진행도 리셋
     setExPoint(p => p + 보상)
     set누적50강생산(0)
     set환생레벨(v => v + 1)
@@ -3037,10 +3055,16 @@ export default function App() {
                   {info.확률.map((line, i) => (
                     <Text key={i} style={{ color: '#cfd6e4', fontSize: 14, lineHeight: 20 }}>{line}</Text>
                   ))}
-                  <Text style={{ color: '#888', fontSize: 9, marginTop: 2 }}>※ 현재 외부 강화보너스 +{(현재외부강화보너스 * 100).toFixed(2)}% 포함(보주·업글·명칭·고유·보석). 마린 개별 일반/초월스텟 가산도 반영.</Text>
+                  <Text style={{ color: '#888', fontSize: 9, marginTop: 2 }}>※ 현재 외부 강화보너스 +{(현재외부강화보너스 * 100).toFixed(2)}% 포함(보주·업글·명칭·보석). 고유유닛 추가1강은 일반확률에만.</Text>
+
+                  <Text style={styles.currencySection}>⚔️ 유닛 전투 (현재 버프 반영)</Text>
+                  <Text style={{ color: '#cfd6e4', fontSize: 14 }}>공격력(공당): {숫자포맷(info.공격력)}</Text>
+                  <Text style={{ color: '#cfd6e4', fontSize: 14 }}>공격속도: {info.공속}</Text>
+                  <Text style={{ color: '#cfd6e4', fontSize: 14 }}>단위 DPS: {숫자포맷(info.dps)}</Text>
 
                   <Text style={styles.currencySection}>💰 판매</Text>
-                  <Text style={{ color: '#cfd6e4', fontSize: 14 }}>{정보단계}강 판매: {info.판매}</Text>
+                  <Text style={{ color: '#cfd6e4', fontSize: 14 }}>판매 비용: {info.판매}</Text>
+                  <Text style={{ color: '#cfd6e4', fontSize: 14 }}>판매 획득: {info.판매획득}</Text>
 
                   {info.구입 > 0 && (
                     <>
