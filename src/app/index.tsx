@@ -3445,8 +3445,8 @@ export default function App() {
         )}
 
         {/* 마린 (현재 화면에 있는 마린만) */}
-        {/* 내부계산모드: 강화중 유닛 숨김(베이스만). 사냥터는 항상 전부 표시 */}
-        {((내부계산모드 && !is사냥터(현재화면)) ? 화면마린들.filter(m => !(자동강화ON && m.lv <= 자동강화최대lv)) : 화면마린들).map(m => {
+        {/* 내부계산모드: 강화중 유닛 숨김(베이스만). 사냥터·보스존은 항상 전부 표시 */}
+        {((내부계산모드 && 현재화면 === 'base') ? 화면마린들.filter(m => !(자동강화ON && m.lv <= 자동강화최대lv)) : 화면마린들).map(m => {
           const selected = 선택ID.includes(m.id)
           const flash = m.공격플래시Until > now
           return (
