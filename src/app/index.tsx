@@ -1171,6 +1171,7 @@ export default function App() {
   const [재화패널열림, set재화패널열림] = useState(false)
   const [도움말패널열림, set도움말패널열림] = useState(false)
   const [정보패널열림, set정보패널열림] = useState(false)
+  const [정보단계, set정보단계] = useState(1)  // 정보 패널에서 보고 있는 강화 단계
   const [자동구입배수, set자동구입배수] = useState<number>(1)
   const [내부계산모드, set내부계산모드] = useState(false)  // 렌더 OFF → 렉 해소
   // 신규 재화 (원본 맵 기반)
@@ -1297,6 +1298,52 @@ export default function App() {
   const _보석b_r = 보석보너스합산(보석)
   const 현재외부강화보너스 = 보주합산(보주, '강화') + 업그레이드.강화확률 * 0.005 + _명칭보너스r.개별확률
     + 고유유닛.추가1강 * 0.0025 + 고유유닛.특수강화 * 0.005 + _보석b_r.궁극보너스
+  // 정보 패널: 강화 단계별 확률·판매 정보 (현재 스텟/보너스 반영, 강화시도() 로직 기준)
+  const 강화단계정보 = (lv: number): { 타입: string; 확률: string[]; 판매: string; 구입: number } => {
+    const 외부 = 현재외부강화보너스
+    const s = 일반스텟
+    const ts: any = 초월스텟
+    const 특수가산 = (s.특수강화 + s.특수강화2) * 0.001
+    const pct = (p: number) => (Math.min(0.95, Math.max(0, p)) * 100).toFixed(2) + '%'
+    let 타입 = '', 확률: string[] = []
+    if (lv >= 60) { 타입 = 'MAX'; 확률 = ['더 이상 강화 불가'] }
+    else if (lv >= 51) {
+      let tb = 0
+      if (lv === 51) tb = (ts.추가51강 || 0) * 0.001
+      else if (lv === 52) tb = (ts.추가52강 || 0) * 0.001
+      else if (lv === 53) tb = (ts.추가53강 || 0) * 0.001
+      else if (lv === 54) tb = (ts.추가54강 || 0) * 0.0001 + (ts.추가54강2 || 0) * 0.0005
+      else if (lv === 55) tb = (ts.추가55강 || 0) * 0.0001 + (ts.추가55강2 || 0) * 0.0002
+      else if (lv === 56) tb = (ts.추가융합 || 0) * 0.001
+      else if (lv === 57) tb = (ts.추가57강 || 0) * 0.001
+      else if (lv === 58) tb = (ts.추가58강 || 0) * 0.001
+      타입 = '초월 확률'; 확률 = [`성공 ${pct(외부 + tb)}`]
+    }
+    else if (lv === 50) { 타입 = '초월 시도 (50→51)'; 확률 = [`성공 ${pct(0.005 + (ts.추가초월확률 || 0) * 0.00001 + 외부)}`] }
+    else if (lv === 49) { 타입 = '고정 확률'; 확률 = [`성공 ${pct(0.005 + 외부)}  (기본 0.5%)`] }
+    else if (lv === 48) { 타입 = '개별 확률'; 확률 = [`성공 ${pct(s.가산48강 * 0.0005 + 외부)}  (기본 0%)`] }
+    else if (lv >= 44) {
+      const base = 강화확률표[lv] ?? 0
+      const g = [s.가산44강, s.가산45강, s.가산46강, s.가산47강][lv - 44] * 0.001
+      타입 = '개별 확률'; 확률 = [`성공 ${pct(base + g + 외부)}  (기본 ${(base * 100).toFixed(1)}%)`]
+    }
+    else if (lv >= 40) { 타입 = '특수 확률'; 확률 = [`성공 ${pct(특수가산 + 외부)}  (특수강화 스텟 기반)`] }
+    else if (lv >= 38) {
+      const base = 강화확률표[lv] ?? 0
+      const g = (s.가산1강 + s.가산1강2 + s.가산2강 + s.가산2강2 + s.가산3강 + s.가산3강2) * 0.001
+      타입 = '일반 확률 (+1)'; 확률 = [`+1 ${pct(base * 1.11 + g + 특수가산 + 외부)}`]
+    }
+    else {
+      const base = 강화확률표[lv] ?? 0
+      const p3 = base / 100 + (s.가산3강 + s.가산3강2) * 0.001 + 특수가산
+      const p2 = base / 10 + (s.가산2강 + s.가산2강2) * 0.001 + 특수가산
+      const p1 = base + (s.가산1강 + s.가산1강2) * 0.001 + 특수가산 + 외부
+      타입 = '일반 확률 (+1/+2/+3)'; 확률 = [`+1 ${pct(p1)}`, `+2 ${pct(p2)}`, `+3 ${pct(p3)}`]
+    }
+    const sc = 판매크레딧비용(lv)
+    const 판매 = lv === 51 ? '판매 불가' : (sc === 0 ? '무료' : `💰 ${숫자포맷(sc)}`)
+    return { 타입, 확률, 판매, 구입: 생산비용표[lv] ?? 0 }
+  }
   const _보스공격력보너스r = 1 + Math.min(보스처치수, 10) * 0.5  // 보스1=×1.5 ... 보스10=×6
   const _공격력배수r = (1 + _보주공격r + 업그레이드.공격력 * 0.03) * _보스공격력보너스r
   const _공속배수r = 1 + _보주공속r + 업그레이드.공속 * 0.02
@@ -2275,9 +2322,12 @@ export default function App() {
     if (!chk.ok) { 메시지표시(`⛔ 환생 불가: ${chk.이유}`); return }
     const 보상 = 환생보상ExPoint()
     if (typeof window !== 'undefined' && window.confirm) {
-      if (!window.confirm(`환생할까요?\n\n50강+ 누적 생산 ${숫자포맷(누적50강생산Ref.current)}마리 → 보상 ⭐ ${숫자포맷(보상)} ExPoint\n\n강화한 것들(마린/스텟/보석/보주/초월/크레딧 등)은 모두 유지됩니다.\n누적 50강+ 생산 카운트만 0으로 초기화됩니다.`)) return
+      if (!window.confirm(`환생할까요?\n\n50강+ 누적 생산 ${숫자포맷(누적50강생산Ref.current)}마리 → 보상 ⭐ ${숫자포맷(보상)} ExPoint\n\n현재 마린은 모두 초기화됩니다.\n스텟/보석/보주/초월/크레딧 등은 유지됩니다.`)) return
     }
-    // 강화한 것들은 전부 유지. ExP 보상만 지급 + 누적50강생산 정산 리셋.
+    // 스텟/보석/보주/초월/크레딧 등은 유지, 현재 마린만 초기화. ExP 보상 지급 + 누적50강생산 정산 리셋.
+    set마린들(초기마린들())
+    set선택ID([])
+    set현재화면('base')
     setExPoint(p => p + 보상)
     set누적50강생산(0)
     set환생레벨(v => v + 1)
@@ -2621,8 +2671,22 @@ export default function App() {
   // 웹: CSS zoom 적용 시 locationX/Y는 zoom된(화면) 좌표 → ÷배율로 필드 논리좌표 환산.
   // 네이티브: transform scale은 locationX에 영향 없음 + 배율 항상 1이므로 보정 안 함(÷1).
   const 터치좌표 = (e: any): Pos => {
-    const 보정 = Platform.OS === 'web' ? 배율Ref.current : 1
-    return { x: e.nativeEvent.locationX / 보정, y: e.nativeEvent.locationY / 보정 }
+    // 웹: 필드의 실제 렌더 rect로 직접 환산 → CSS zoom/transform/스크롤 전부 무관하게 정확.
+    if (Platform.OS === 'web') {
+      const el = fieldRef.current
+      if (el && typeof el.getBoundingClientRect === 'function') {
+        const rect = el.getBoundingClientRect()
+        if (rect.width > 0) {
+          const scale = rect.width / 필드_W  // 실제 시각 배율
+          const sx = (typeof window !== 'undefined' ? (window.scrollX || window.pageXOffset || 0) : 0)
+          const sy = (typeof window !== 'undefined' ? (window.scrollY || window.pageYOffset || 0) : 0)
+          const cx = (e.nativeEvent.pageX ?? e.nativeEvent.clientX ?? 0) - sx
+          const cy = (e.nativeEvent.pageY ?? e.nativeEvent.clientY ?? 0) - sy
+          return { x: (cx - rect.left) / scale, y: (cy - rect.top) / scale }
+        }
+      }
+    }
+    return { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }
   }
   const fieldResponderProps = {
     onStartShouldSetResponder: () => true,
@@ -2894,10 +2958,10 @@ export default function App() {
               ['💠 보석·🔮 보주·🔷 크리스탈', '강화확률·자원·DPS 등 각종 보너스. 무색조각·응무조 등으로 구입.'],
               ['🌀 초월', '30만 레벨 도달 후 해금. 51강+ 강화·고강 판매로 초월경험 획득, 초월스텟 분배.'],
               ['🦸 고유유닛', '크레딧으로 강화하는 특별 유닛. 모든 강화 MAX 시 각성석으로 단수업(채광력↑).'],
-              ['🌟 환생', '누적 50강+ 생산 1마리당 ExP 보상. 강화한 것들(마린/스텟/보석/보주/초월/크레딧)은 모두 유지, 누적 카운트만 0으로 정산.'],
+              ['🌟 환생', '누적 50강+ 생산 1마리당 ExP 보상. 현재 마린은 초기화되고 스텟/보석/보주/초월/크레딧은 유지. 누적 카운트는 0으로 정산.'],
               ['🔄 ExP→크레딧', '고강 판매 크레딧이 비싸 ExP를 환전해 충당. (재화 패널에서 25%/50%/전부 교환)'],
               ['🧹 강화 초기화', '스텟/보석/보주/초월스텟 카테고리별로 쓴 자원·포인트를 전액 환불하며 리셋(리스펙).'],
-              ['⌨️ 조작(PC)', '마린 탭 또는 드래그로 선택. H=수비, S=정지, Esc=선택해제.'],
+              ['👆 마린 선택', '마린을 탭하거나 드래그(여러 마리)해서 선택합니다.'],
             ].map(([제목, 내용]) => (
               <View key={제목} style={{ marginBottom: 8 }}>
                 <Text style={[styles.currencySection, { marginTop: 0 }]}>{제목}</Text>
@@ -2911,39 +2975,45 @@ export default function App() {
       {정보패널열림 && (
         <View style={styles.currencyPanel}>
           <View style={styles.currencyHeader}>
-            <Text style={styles.currencyTitle}>📊 정보 (현재 수치)</Text>
+            <Text style={styles.currencyTitle}>📊 강화 단계 정보</Text>
             <TouchableOpacity onPress={() => set정보패널열림(false)}>
               <Text style={styles.closeBtn}>✕</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView style={{ maxHeight: 화면H - 320 }}>
-            <Text style={styles.currencySection}>⚒️ 강화 확률 (현재 외부보너스 +{(현재외부강화보너스 * 100).toFixed(1)}% 적용)</Text>
-            <Text style={{ color: '#888', fontSize: 9, marginBottom: 2 }}>※ 일반스텟 가산은 별도 추가. 51강+는 초월스텟 기반.</Text>
-            {[1, 5, 10, 20, 30, 37, 39, 44, 45, 46, 47, 48, 49].map(lv => {
-              const base = 강화확률표[lv] ?? 0
-              const 실제 = Math.min(0.95, base + 현재외부강화보너스)
-              return (
-                <Text key={lv} style={{ color: '#cfd6e4', fontSize: 11 }}>
-                  {lv}강 → {(실제 * 100).toFixed(2)}%  <Text style={{ color: '#888' }}>(기본 {(base * 100).toFixed(1)}%)</Text>
-                </Text>
-              )
-            })}
-            <Text style={{ color: '#cfd6e4', fontSize: 11 }}>50→51강: 초월 시도 / 51~59강: 초월스텟 기반</Text>
+          {(() => {
+            const info = 강화단계정보(정보단계)
+            const 이동 = (d: number) => set정보단계(v => Math.max(1, Math.min(60, v + d)))
+            return (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginVertical: 6 }}>
+                  <TouchableOpacity onPress={() => 이동(-10)} style={[styles.upgBtn, { minWidth: 44 }]}><Text style={styles.upgBtnText}>◀◀</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => 이동(-1)} style={[styles.upgBtn, { minWidth: 44 }]}><Text style={styles.upgBtnText}>◀</Text></TouchableOpacity>
+                  <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', minWidth: 72, textAlign: 'center' }}>{정보단계}강</Text>
+                  <TouchableOpacity onPress={() => 이동(1)} style={[styles.upgBtn, { minWidth: 44 }]}><Text style={styles.upgBtnText}>▶</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => 이동(10)} style={[styles.upgBtn, { minWidth: 44 }]}><Text style={styles.upgBtnText}>▶▶</Text></TouchableOpacity>
+                </View>
+                <ScrollView style={{ maxHeight: 화면H - 380 }}>
+                  <Text style={styles.currencySection}>🎲 강화 확률  <Text style={{ color: '#a855f7', fontSize: 11 }}>[{info.타입}]</Text></Text>
+                  {info.확률.map((line, i) => (
+                    <Text key={i} style={{ color: '#cfd6e4', fontSize: 14, lineHeight: 20 }}>{line}</Text>
+                  ))}
+                  <Text style={{ color: '#888', fontSize: 9, marginTop: 2 }}>※ 현재 외부 강화보너스 +{(현재외부강화보너스 * 100).toFixed(2)}% 포함(보주·업글·명칭·고유·보석). 마린 개별 일반/초월스텟 가산도 반영.</Text>
 
-            <Text style={styles.currencySection}>💎 강화 자원 비용 (= 30 + 강×20)</Text>
-            <Text style={{ color: '#cfd6e4', fontSize: 11 }}>1강 50 · 10강 230 · 30강 630 · 49강 1,010</Text>
+                  <Text style={styles.currencySection}>💰 판매</Text>
+                  <Text style={{ color: '#cfd6e4', fontSize: 14 }}>{정보단계}강 판매: {info.판매}</Text>
 
-            <Text style={styles.currencySection}>🛒 마린 구입 비용 (자원)</Text>
-            {생산강도목록.map(강도 => (
-              <Text key={강도} style={{ color: '#cfd6e4', fontSize: 11 }}>{강도}강 마린: {숫자포맷(생산비용(강도))}</Text>
-            ))}
+                  {info.구입 > 0 && (
+                    <>
+                      <Text style={styles.currencySection}>🛒 구입(생산)</Text>
+                      <Text style={{ color: '#cfd6e4', fontSize: 14 }}>{정보단계}강 마린 구입: {숫자포맷(info.구입)} 자원</Text>
+                    </>
+                  )}
 
-            <Text style={styles.currencySection}>💰 마린 판매 크레딧 비용</Text>
-            {[41, 45, 49, 50, 52, 53, 54, 55, 56, 57, 58, 59, 60].map(lv => (
-              <Text key={lv} style={{ color: '#cfd6e4', fontSize: 11 }}>{lv}강: {판매크레딧비용(lv) === 0 ? '무료' : 숫자포맷(판매크레딧비용(lv))}</Text>
-            ))}
-            <Text style={{ color: '#888', fontSize: 9 }}>※ 51강·40강 이하 판매는 무료</Text>
-          </ScrollView>
+                  <Text style={{ color: '#888', fontSize: 10, marginTop: 10 }}>40강 이하 판매: 무료 · 51강: 판매 불가 · 강화는 자원 소모 없음</Text>
+                </ScrollView>
+              </>
+            )
+          })()}
         </View>
       )}
 
@@ -3250,23 +3320,15 @@ export default function App() {
       </View>
       </View>
 
-      {/* 힌트 */}
-      <View style={styles.hintBar}>
-        <Text style={styles.hintText}>
-          {선택ID.length > 0
-            ? '👆 빈곳=이동, 적=공격, 마린=선택, 빈드래그=해제'
-            : '👆 마린 탭 또는 드래그로 선택'}
-        </Text>
-      </View>
+      {/* 힌트 (선택 중일 때 조작 안내만) */}
+      {선택ID.length > 0 && (
+        <View style={styles.hintBar}>
+          <Text style={styles.hintText}>👆 빈곳=이동, 적=공격, 마린=선택, 빈드래그=해제</Text>
+        </View>
+      )}
 
       {메시지 ? <Text style={styles.message}>{메시지}</Text> : null}
 
-      {/* 베이스 안내 */}
-      {현재화면 === 'base' && (
-        <View style={styles.zoneInfo}>
-          <Text style={styles.zoneInfoText}>🔨 강화소 | ⚔️ 보스존 (최대 12) | 🐺 사냥터 (몹→💎) | 🛒 판매소</Text>
-        </View>
-      )}
       {(is사냥터(현재화면) || 현재화면 === 'boss') && (
         <View style={styles.zoneInfo}>
           <Text style={styles.zoneInfoText}>🏠 베이스 비콘으로 마린 보내면 베이스 복귀</Text>
@@ -3716,7 +3778,7 @@ export default function App() {
             </TouchableOpacity>
             <View style={styles.divider} />
             <Text style={[styles.prodSubtitle, { color: '#aaa', fontSize: 11 }]}>
-              ※ 환생해도 강화한 것들(마린/스텟/보석/보주/초월/크레딧 등)은 모두 유지됩니다. 누적 50강+ 생산 카운트만 0으로 정산됩니다.
+              ※ 환생하면 현재 마린이 초기화됩니다. 스텟/보석/보주/초월/크레딧 등은 유지, 누적 50강+ 생산은 0으로 정산.
             </Text>
           </View>
         )
@@ -3825,13 +3887,6 @@ export default function App() {
         </View>
       )}
 
-      {/* 키보드 안내 (PC) */}
-      {Platform.OS === 'web' && (
-        <View style={styles.controls}>
-          <Text style={styles.controlsTitle}>⌨️ 키보드 (PC)</Text>
-          <Text style={styles.controlsText}>H=수비 S=정지 Esc=선택해제</Text>
-        </View>
-      )}
 
       <Text style={[styles.resetButtonText, { textAlign: 'center', marginBottom: 2 }]}>🧹 강화 초기화 (쓴 자원/포인트 환불)</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
