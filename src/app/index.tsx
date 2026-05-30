@@ -356,7 +356,9 @@ const 판매초월경험표: Record<number, number> = {
   57: 50000000, 58: 1000000000, 59: 30000000000, 60: 1000000000000,
 }
 
-const 생산강도목록 = [1, 7, 11, 15, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 49, 50, 51, 52, 53, 54] as const
+// 1~56강 전부 구입 가능
+const 생산강도목록 = Array.from({ length: 56 }, (_, i) => i + 1)
+// 앵커 비용 (기존 데이터). 빠진 단계는 기하보간/외삽으로 채움.
 const 생산비용표: Record<number, number> = {
   1: 1500, 7: 40000, 11: 700000, 15: 8000000,
   18: 100000000, 20: 600000000, 22: 3500000000, 24: 20000000000,
@@ -365,8 +367,23 @@ const 생산비용표: Record<number, number> = {
   41: 6e19, 42: 4e20, 43: 2.5e21, 44: 1.5e22, 45: 1e23, 46: 5e23,
   49: 1.5e24, 50: 5e25, 51: 1e26, 52: 5e27, 53: 1e29, 54: 5e31,
 }
+const _생산앵커 = Object.keys(생산비용표).map(Number).sort((a, b) => a - b)
 function 생산비용(강도: number): number {
-  return 생산비용표[강도] ?? Number.MAX_SAFE_INTEGER
+  if (생산비용표[강도] != null) return 생산비용표[강도]
+  if (강도 <= _생산앵커[0]) return 생산비용표[_생산앵커[0]]
+  const 최대앵커 = _생산앵커[_생산앵커.length - 1]
+  if (강도 > 최대앵커) {
+    // 외삽: 마지막 두 앵커의 단계당 배율로 연장
+    const a = _생산앵커[_생산앵커.length - 2], b = 최대앵커
+    const perLv = Math.pow(생산비용표[b] / 생산비용표[a], 1 / (b - a))
+    return Math.round(생산비용표[b] * Math.pow(perLv, 강도 - b))
+  }
+  // 앵커 사이 기하보간
+  let lo = _생산앵커[0], hi = 최대앵커
+  for (const k of _생산앵커) { if (k <= 강도) lo = k; if (k >= 강도) { hi = k; break } }
+  if (lo === hi) return 생산비용표[lo]
+  const r = (강도 - lo) / (hi - lo)
+  return Math.round(생산비용표[lo] * Math.pow(생산비용표[hi] / 생산비용표[lo], r))
 }
 
 // 마린 판매 시 드는 크레딧 (강도별). 51강·40강 이하는 0(무료).
@@ -776,7 +793,7 @@ const 초기보석: 보석목록 = { 하급: 0, 중급: 0, 상급: 0, 특급: 0,
 const 보석max: Record<보석타입, number> = {
   하급: 100, 중급: 100, 상급: 100, 특급: 100, 고급: 1000,
   재물: 200, 경험보석: 1000, 보호보석: 200, 궁극: 100, 수호: 1000, 초월보석: 350, 인내: 1000,
-  강타: 100, 자동화: 100, 채광: 100,
+  강타: 8, 자동화: 100, 채광: 100,
 }
 // 동적 비용: DPS계산기(뉴비용) old1 시트 수식 그대로. n = 현재 보유 → 다음 1개 구입 비용 (무색조각)
 function 보석현재비용(종류: 보석타입, 보유: number): number {
@@ -1342,7 +1359,7 @@ export default function App() {
     }
     const sc = 판매크레딧비용(lv)
     const 판매 = lv === 51 ? '판매 불가' : (sc === 0 ? '무료' : `💰 ${숫자포맷(sc)}`)
-    return { 타입, 확률, 판매, 구입: 생산비용표[lv] ?? 0 }
+    return { 타입, 확률, 판매, 구입: lv >= 1 && lv <= 56 ? 생산비용(lv) : 0 }
   }
   const _보스공격력보너스r = 1 + Math.min(보스처치수, 10) * 0.5  // 보스1=×1.5 ... 보스10=×6
   const _공격력배수r = (1 + _보주공격r + 업그레이드.공격력 * 0.03) * _보스공격력보너스r
@@ -2968,6 +2985,13 @@ export default function App() {
                 <Text style={{ color: '#cfd6e4', fontSize: 11, lineHeight: 16 }}>{내용}</Text>
               </View>
             ))}
+            <View style={styles.divider} />
+            <TouchableOpacity
+              style={[styles.resetButton, { alignSelf: 'center', backgroundColor: '#5a2a2a', paddingHorizontal: 16 }]}
+              onPress={게임초기화}
+            >
+              <Text style={[styles.resetButtonText, { color: '#ff9a9a' }]}>🔄 전체 초기화 (모든 진행 삭제)</Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       )}
@@ -3320,13 +3344,6 @@ export default function App() {
       </View>
       </View>
 
-      {/* 힌트 (선택 중일 때 조작 안내만) */}
-      {선택ID.length > 0 && (
-        <View style={styles.hintBar}>
-          <Text style={styles.hintText}>👆 빈곳=이동, 적=공격, 마린=선택, 빈드래그=해제</Text>
-        </View>
-      )}
-
       {메시지 ? <Text style={styles.message}>{메시지}</Text> : null}
 
       {(is사냥터(현재화면) || 현재화면 === 'boss') && (
@@ -3526,6 +3543,13 @@ export default function App() {
                 )}
               </>
             )}
+            {/* 현재 탭 카테고리 초기화 (쓴 자원/포인트 전액 환불) */}
+            <TouchableOpacity
+              style={[styles.resetButton, { alignSelf: 'center', marginTop: 10, backgroundColor: '#3a2a3a' }]}
+              onPress={스텟탭 === '일반' ? 스텟초기화 : 스텟탭 === '초월' ? 초월스텟초기화 : 스텟탭 === '보주' ? 보주초기화 : 보석초기화}
+            >
+              <Text style={styles.resetButtonText}>🧹 {스텟탭 === '일반' ? '스텟' : 스텟탭 === '초월' ? '초월스텟' : 스텟탭 === '보주' ? '보주' : '보석'} 초기화 (환불)</Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       )}
@@ -3888,24 +3912,6 @@ export default function App() {
       )}
 
 
-      <Text style={[styles.resetButtonText, { textAlign: 'center', marginBottom: 2 }]}>🧹 강화 초기화 (쓴 자원/포인트 환불)</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-        <TouchableOpacity style={styles.resetButton} onPress={스텟초기화}>
-          <Text style={styles.resetButtonText}>📊 스텟</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.resetButton} onPress={보석초기화}>
-          <Text style={styles.resetButtonText}>💠 보석</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.resetButton} onPress={보주초기화}>
-          <Text style={styles.resetButtonText}>🔮 보주</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.resetButton} onPress={초월스텟초기화}>
-          <Text style={styles.resetButtonText}>🌀 초월스텟</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.resetButton} onPress={게임초기화}>
-          <Text style={styles.resetButtonText}>🔄 전체</Text>
-        </TouchableOpacity>
-      </View>
     </ScrollView>
     </SafeAreaView>
   )
