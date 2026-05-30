@@ -369,6 +369,24 @@ function 생산비용(강도: number): number {
   return 생산비용표[강도] ?? Number.MAX_SAFE_INTEGER
 }
 
+// 마린 판매 시 드는 크레딧 (강도별). 51강·40강 이하는 0(무료).
+function 판매크레딧비용(lv: number): number {
+  if (lv >= 41 && lv <= 44) return 100
+  if (lv >= 45 && lv <= 48) return 1e6
+  if (lv === 49) return 1e7
+  if (lv === 50) return 1e8
+  if (lv === 52) return 1e12
+  if (lv === 53) return 1e13
+  if (lv === 54) return 1e14
+  if (lv === 55) return 1e15
+  if (lv === 56) return 1e16
+  if (lv === 57) return 1e19
+  if (lv === 58) return 1e20
+  if (lv === 59) return 1e21
+  if (lv === 60) return 1e28
+  return 0
+}
+
 // 판매 보상 (원본 맵 45~60강 뽑기 확률표 기반)
 // 기본 지급 + 각성보석/크리스탈조각 확률 드랍
 // 출처: SCX 트리거 string 292~295, 802~803, 904~908, 126~147, 1232
@@ -1136,6 +1154,8 @@ export default function App() {
   const [누적50강생산, set누적50강생산] = useState(0)
   const [환생패널열림, set환생패널열림] = useState(false)
   const [재화패널열림, set재화패널열림] = useState(false)
+  const [도움말패널열림, set도움말패널열림] = useState(false)
+  const [정보패널열림, set정보패널열림] = useState(false)
   const [자동구입배수, set자동구입배수] = useState<number>(1)
   const [내부계산모드, set내부계산모드] = useState(false)  // 렌더 OFF → 렉 해소
   // 신규 재화 (원본 맵 기반)
@@ -1257,6 +1277,11 @@ export default function App() {
   const _보주공속r = 보주합산(보주, '공속')
   const _보주자원r = 보주합산(보주, '자원')
   const _보주배수r = 보주합산(보주, '배수')
+  // 정보 패널: 현재 외부 강화 보너스 합(1~49강 공통). 게임틱 외부강화보너스와 동일 구성.
+  const _명칭보너스r = 명칭크리스탈보너스(명칭크리스탈Lv, 장착크리스탈)
+  const _보석b_r = 보석보너스합산(보석)
+  const 현재외부강화보너스 = 보주합산(보주, '강화') + 업그레이드.강화확률 * 0.005 + _명칭보너스r.개별확률
+    + 고유유닛.추가1강 * 0.0025 + 고유유닛.특수강화 * 0.005 + _보석b_r.궁극보너스
   const _보스공격력보너스r = 1 + Math.min(보스처치수, 10) * 0.5  // 보스1=×1.5 ... 보스10=×6
   const _공격력배수r = (1 + _보주공격r + 업그레이드.공격력 * 0.03) * _보스공격력보너스r
   const _공속배수r = 1 + _보주공속r + 업그레이드.공속 * 0.02
@@ -1518,22 +1543,7 @@ export default function App() {
       const 융합필요수 = Math.max(1, 20000 - bj.절약 * 10)
       const 판매수집: { lv: number }[] = []
       // 판매 크레딧 비용 (강도별)
-      const 판매크레딧비용Pre = (lv: number): number => {
-        if (lv >= 41 && lv <= 44) return 100
-        if (lv >= 45 && lv <= 48) return 1e6
-        if (lv === 49) return 1e7
-        if (lv === 50) return 1e8
-        if (lv === 52) return 1e12
-        if (lv === 53) return 1e13
-        if (lv === 54) return 1e14
-        if (lv === 55) return 1e15
-        if (lv === 56) return 1e16
-        if (lv === 57) return 1e19
-        if (lv === 58) return 1e20
-        if (lv === 59) return 1e21
-        if (lv === 60) return 1e28
-        return 0
-      }
+      const 판매크레딧비용Pre = 판매크레딧비용
       let 가용크레딧Tick = 크레딧Ref.current
       let 화면전환target: 화면 | null = null
 
@@ -2786,10 +2796,24 @@ export default function App() {
           <Text style={[styles.statSmall, { color: 잔여포인트 > 0 ? '#f5a623' : '#aaa' }]}>Lv.{캐릭레벨}{잔여포인트 > 0 ? ` (+${잔여포인트}P)` : ''}</Text>
           <TouchableOpacity onPress={() => set재화패널열림(v => {
             const next = !v
-            if (next) { set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
+            if (next) { set도움말패널열림(false); set정보패널열림(false); set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
             return next
           })} style={{ paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#3a5a8a', borderRadius: 4 }}>
             <Text style={[styles.statSmall, { color: '#fff' }]}>💰 재화</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => set도움말패널열림(v => {
+            const next = !v
+            if (next) { set정보패널열림(false); set재화패널열림(false); set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
+            return next
+          })} style={{ paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#5a3a8a', borderRadius: 4 }}>
+            <Text style={[styles.statSmall, { color: '#fff' }]}>📖 도움말</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => set정보패널열림(v => {
+            const next = !v
+            if (next) { set도움말패널열림(false); set재화패널열림(false); set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
+            return next
+          })} style={{ paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#3a7a5a', borderRadius: 4 }}>
+            <Text style={[styles.statSmall, { color: '#fff' }]}>📊 정보</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -2838,6 +2862,76 @@ export default function App() {
         </View>
       )}
 
+      {도움말패널열림 && (
+        <View style={styles.currencyPanel}>
+          <View style={styles.currencyHeader}>
+            <Text style={styles.currencyTitle}>📖 게임 도움말</Text>
+            <TouchableOpacity onPress={() => set도움말패널열림(false)}>
+              <Text style={styles.closeBtn}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 화면H - 320 }}>
+            {[
+              ['🎯 목표', '마린을 강화해 고강(50강+)으로 키우고 DPS·자원·크레딧을 불린다.'],
+              ['⚒️ 강화', '마린 선택 → 강화소 또는 자동강화. 성공 시 +1강(저강은 +2/+3도). 실패 시 마린 파괴(40~49강은 파괴방지 적용). 강화마다 자원(미네랄) 소모. 50→51강은 초월 시스템 별도.'],
+              ['🐺 사냥터/DPS', '마린을 사1/사2/사3에 두면 자동 공격 → DPS 측정 → 자원 생성. 티어 높을수록 단가↑. 사3(허수광산)은 크레딧도 함께 나온다.'],
+              ['💰 재화 종류', '미네랄(자원·강화·구입) / 크레딧(고유유닛 강화·마린 판매비) / 무색조각(보석) / 응무조(보주) / 각성석·크리스탈·상급조각 / ExP(환생 보상→크레딧 교환) / 일반P·초월P(스텟 분배).'],
+              ['💠 보석·🔮 보주·🔷 크리스탈', '강화확률·자원·DPS 등 각종 보너스. 무색조각·응무조 등으로 구입.'],
+              ['🌀 초월', '30만 레벨 도달 후 해금. 51강+ 강화·고강 판매로 초월경험 획득, 초월스텟 분배.'],
+              ['🦸 고유유닛', '크레딧으로 강화하는 특별 유닛. 모든 강화 MAX 시 각성석으로 단수업(채광력↑).'],
+              ['🌟 환생', '누적 50강+ 생산 1마리당 ExP 보상. 강화한 것들(마린/스텟/보석/보주/초월/크레딧)은 모두 유지, 누적 카운트만 0으로 정산.'],
+              ['🔄 ExP→크레딧', '고강 판매 크레딧이 비싸 ExP를 환전해 충당. (재화 패널에서 25%/50%/전부 교환)'],
+              ['🧹 강화 초기화', '스텟/보석/보주/초월스텟 카테고리별로 쓴 자원·포인트를 전액 환불하며 리셋(리스펙).'],
+              ['⌨️ 조작(PC)', '마린 탭 또는 드래그로 선택. H=수비, S=정지, Esc=선택해제.'],
+            ].map(([제목, 내용]) => (
+              <View key={제목} style={{ marginBottom: 8 }}>
+                <Text style={[styles.currencySection, { marginTop: 0 }]}>{제목}</Text>
+                <Text style={{ color: '#cfd6e4', fontSize: 11, lineHeight: 16 }}>{내용}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {정보패널열림 && (
+        <View style={styles.currencyPanel}>
+          <View style={styles.currencyHeader}>
+            <Text style={styles.currencyTitle}>📊 정보 (현재 수치)</Text>
+            <TouchableOpacity onPress={() => set정보패널열림(false)}>
+              <Text style={styles.closeBtn}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 화면H - 320 }}>
+            <Text style={styles.currencySection}>⚒️ 강화 확률 (현재 외부보너스 +{(현재외부강화보너스 * 100).toFixed(1)}% 적용)</Text>
+            <Text style={{ color: '#888', fontSize: 9, marginBottom: 2 }}>※ 일반스텟 가산은 별도 추가. 51강+는 초월스텟 기반.</Text>
+            {[1, 5, 10, 20, 30, 37, 39, 44, 45, 46, 47, 48, 49].map(lv => {
+              const base = 강화확률표[lv] ?? 0
+              const 실제 = Math.min(0.95, base + 현재외부강화보너스)
+              return (
+                <Text key={lv} style={{ color: '#cfd6e4', fontSize: 11 }}>
+                  {lv}강 → {(실제 * 100).toFixed(2)}%  <Text style={{ color: '#888' }}>(기본 {(base * 100).toFixed(1)}%)</Text>
+                </Text>
+              )
+            })}
+            <Text style={{ color: '#cfd6e4', fontSize: 11 }}>50→51강: 초월 시도 / 51~59강: 초월스텟 기반</Text>
+
+            <Text style={styles.currencySection}>💎 강화 자원 비용 (= 30 + 강×20)</Text>
+            <Text style={{ color: '#cfd6e4', fontSize: 11 }}>1강 50 · 10강 230 · 30강 630 · 49강 1,010</Text>
+
+            <Text style={styles.currencySection}>🛒 마린 구입 비용 (자원)</Text>
+            {생산강도목록.map(강도 => (
+              <Text key={강도} style={{ color: '#cfd6e4', fontSize: 11 }}>{강도}강 마린: {숫자포맷(생산비용(강도))}</Text>
+            ))}
+
+            <Text style={styles.currencySection}>💰 마린 판매 크레딧 비용</Text>
+            {[41, 45, 49, 50, 52, 53, 54, 55, 56, 57, 58, 59, 60].map(lv => (
+              <Text key={lv} style={{ color: '#cfd6e4', fontSize: 11 }}>{lv}강: {판매크레딧비용(lv) === 0 ? '무료' : 숫자포맷(판매크레딧비용(lv))}</Text>
+            ))}
+            <Text style={{ color: '#888', fontSize: 9 }}>※ 51강·40강 이하 판매는 무료</Text>
+          </ScrollView>
+        </View>
+      )}
+
       {/* 화면 전환 탭 */}
       <View style={styles.tabBar}>
         <TouchableOpacity
@@ -2882,25 +2976,25 @@ export default function App() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.smallBtn} onPress={() => {
           const v = !강화패널열림
-          set강화패널열림(v); if (v) { set재화패널열림(false); set생산패널열림(false); set자동패널열림(false); set명칭크리스탈패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
+          set강화패널열림(v); if (v) { set재화패널열림(false); set도움말패널열림(false); set정보패널열림(false); set생산패널열림(false); set자동패널열림(false); set명칭크리스탈패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
         }}>
           <Text style={styles.smallBtnText}>✨ 강화</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.smallBtn} onPress={() => {
           const v = !명칭크리스탈패널열림
-          set명칭크리스탈패널열림(v); if (v) { set재화패널열림(false); set생산패널열림(false); set자동패널열림(false); set강화패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
+          set명칭크리스탈패널열림(v); if (v) { set재화패널열림(false); set도움말패널열림(false); set정보패널열림(false); set생산패널열림(false); set자동패널열림(false); set강화패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
         }}>
           <Text style={styles.smallBtnText}>🌟 크리스탈</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.smallBtn} onPress={() => {
           const v = !고유유닛패널열림
-          set고유유닛패널열림(v); if (v) { set재화패널열림(false); set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false) }
+          set고유유닛패널열림(v); if (v) { set재화패널열림(false); set도움말패널열림(false); set정보패널열림(false); set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false) }
         }}>
           <Text style={styles.smallBtnText}>🦸 고유</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.smallBtn, { backgroundColor: '#5b2a8c' }]} onPress={() => {
           const v = !환생패널열림
-          set환생패널열림(v); if (v) { set재화패널열림(false); set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false); set고유유닛패널열림(false) }
+          set환생패널열림(v); if (v) { set재화패널열림(false); set도움말패널열림(false); set정보패널열림(false); set생산패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false); set고유유닛패널열림(false) }
         }}>
           <Text style={styles.smallBtnText}>🌟 환생{환생레벨 > 0 ? `(Lv.${환생레벨})` : ''}</Text>
         </TouchableOpacity>
