@@ -590,7 +590,9 @@ const 타격마일스톤표: { 임계값: number; 라벨: string; 보상: 타격
 
 // 웹은 데스크탑 큰 화면 대응, 모바일은 헤더 공간 확보
 const _isWeb = Platform.OS === 'web'
-const 필드_W = Math.min(_isWeb ? 460 : 380, 화면W - 16)
+// 웹: 필드_W를 고정(460)해 로드 타이밍에 따른 폭 흔들림 제거. 실제 뷰포트엔 화면맞춤배율(zoom)로 맞춤.
+// 네이티브: 화면폭에 맞춰 축소(작은 폰 대응).
+const 필드_W = _isWeb ? 460 : Math.min(380, 화면W - 16)
 const 필드_H = _isWeb
   ? Math.max(380, Math.min(560, 화면H - 220))
   : Math.max(280, Math.min(440, 화면H - 400))
@@ -1075,10 +1077,23 @@ export default function App() {
   // 컬럼 너비 = 필드_W + container 좌우 padding(4*2). 뷰포트보다 넓으면 축소만 함(확대 X).
   // 확대를 막아야 측정 오차(뷰포트W가 실제보다 크게 읽히는 경우)에도 가로 오버플로가 안 생김.
   const { width: 뷰포트W } = useWindowDimensions()
+  // 웹: 마운트 직후(폭 안정화)와 실제 resize 시 1회 재렌더 → 아래 라이브 window.innerWidth로 배율 재계산.
+  // (useWindowDimensions가 로드 초기/리사이즈에 부정확할 때의 보정)
+  const [, set뷰포트보정] = useState(0)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const 갱신 = () => set뷰포트보정(n => n + 1)
+    const id = setTimeout(갱신, 120)
+    window.addEventListener('resize', 갱신)
+    return () => { clearTimeout(id); window.removeEventListener('resize', 갱신) }
+  }, [])
   const 컬럼W = 필드_W + 8
-  // useWindowDimensions가 간헐적으로 비정상값(~1px)을 반환 → 배율이 미세해져 화면이 쪼그라드는 버그 방지.
-  // 100px 미만이면 신뢰 불가로 보고 로드시점 화면폭(화면W)으로 폴백.
-  const 안전뷰포트W = 뷰포트W > 100 ? 뷰포트W : 화면W
+  // 실제 뷰포트 폭을 신뢰성 있게 측정: 라이브 window.innerWidth 우선.
+  // (useWindowDimensions 상태와 모듈상수 화면W 모두 로드 타이밍에 따라 틀린 값을 줄 수 있음 →
+  //  필드_W가 실제 뷰포트보다 크게 잡히면 좌우가 짤리므로, 항상 현재 폭에 맞춰 축소되도록.)
+  // 뷰포트W(useWindowDimensions)는 리사이즈 시 재렌더 트리거 + 폴백용.
+  const _liveW = (typeof window !== 'undefined' && window.innerWidth > 100) ? window.innerWidth : 0
+  const 안전뷰포트W = _liveW || (뷰포트W > 100 ? 뷰포트W : 화면W)
   const 화면맞춤배율 = Math.min(안전뷰포트W / 컬럼W, 1)
   const 배율Ref = useRef(화면맞춤배율); 배율Ref.current = 화면맞춤배율
   // 축소가 실제로 필요할 때만(좁은 화면) scale/zoom 적용. PC(배율≈1)에선 zoom 미적용 → 원래 레이아웃 그대로(레이아웃 깨짐 방지)
@@ -2777,7 +2792,7 @@ export default function App() {
 
       <View style={styles.statBox}>
         <View style={styles.statRow}>
-          <Text style={styles.stat}>💎 {숫자포맷(mineral)}</Text>
+          <Text style={styles.stat} numberOfLines={1}>💎 {숫자포맷(mineral)}</Text>
           <TouchableOpacity onPress={() => {
             const next = 타격마일스톤표[타격수획득idx]
             if (!next) { 메시지표시('🏆 타격수 마일스톤 전부 완료'); return }
@@ -3889,7 +3904,7 @@ const styles = StyleSheet.create({
   sliderArrow: { backgroundColor: '#1f2a48', borderRadius: 4, width: 30, height: 28, alignItems: 'center', justifyContent: 'center' },
   sliderArrowText: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
   sliderValue: { color: '#f5a623', fontSize: 14, fontWeight: 'bold', width: 45, textAlign: 'center' },
-  statRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  statRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8 },
   statSmall: { fontSize: 12, color: '#aaaaaa' },
   statBatch: {
     fontSize: 14,
