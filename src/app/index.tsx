@@ -3037,6 +3037,8 @@ export default function App() {
             <Text style={styles.statSmall}>🎯 {숫자포맷(총공격수)}</Text>
           </TouchableOpacity>
           <Text style={[styles.statSmall, { color: 잔여포인트 > 0 ? '#f5a623' : '#aaa' }]}>Lv.{캐릭레벨}{잔여포인트 > 0 ? ` (+${잔여포인트}P)` : ''}</Text>
+        </View>
+        <View style={[styles.statRow, { marginTop: 4 }]}>
           <TouchableOpacity onPress={() => set재화패널열림(v => {
             const next = !v
             if (next) { set도움말패널열림(false); set정보패널열림(false); set생산패널열림(false); set상점패널열림(false); set자동패널열림(false); set보주패널열림(false); set강화패널열림(false); set명칭크리스탈패널열림(false); set보석패널열림(false); set고유유닛패널열림(false); set환생패널열림(false) }
