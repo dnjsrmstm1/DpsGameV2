@@ -2372,8 +2372,9 @@ export default function App() {
     set초월경험치(txp)
     if (tDelta > 0) {
       set초월레벨(prev => prev + tDelta)
-      set초월잔여포인트(prev => prev + tDelta)
-      메시지표시(`🌀 초월레벨업! +${tDelta} (+${tDelta} 초월포인트)`)
+      set초월잔여포인트(prev => prev + tDelta * 5)  // 초월레벨당 초월스텟 5
+      set잔여포인트(prev => prev + tDelta * 5)        // 초월레벨당 일반스텟 5
+      메시지표시(`🌀 초월레벨업! +${tDelta} (+${tDelta * 5} 초월P / +${tDelta * 5} 일반P)`)
     }
   }
 
@@ -2731,8 +2732,9 @@ export default function App() {
   useEffect(() => {
     if (캐릭레벨 >= 캐릭레벨최대 && 초월레벨 === 0) {
       set초월레벨(1)
-      set초월잔여포인트(p => p + 1)
-      메시지표시('🌀 30만 레벨 도달! 초월레벨 1 활성화')
+      set초월잔여포인트(p => p + 5)  // 초월레벨당 초월스텟 5
+      set잔여포인트(p => p + 5)        // 초월레벨당 일반스텟 5
+      메시지표시('🌀 30만 레벨 도달! 초월레벨 1 활성화 (+5 초월P / +5 일반P)')
     }
   }, [캐릭레벨, 초월레벨])
 
