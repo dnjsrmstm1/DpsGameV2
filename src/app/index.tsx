@@ -2255,9 +2255,9 @@ export default function App() {
         보스킬쿨다운Ref.current = now
         const baseN = 보스처치수Ref.current
         set보스처치수(prev => prev + 1)
-        // 보스 클리어 → 레벨 +500 (레벨당 5포인트 → +2500)
-        set캐릭레벨(prev => prev + 500)
-        set잔여포인트(prev => prev + 2500)
+        // 보스 클리어 → 레벨 +1500 (10보스=15000렙). 레벨당 5포인트 → +7500
+        set캐릭레벨(prev => prev + 1500)
+        set잔여포인트(prev => prev + 7500)
         if (Platform.OS !== 'web') Vibration.vibrate([0, 100, 50, 100])
         const _보스배수 = 1
         const 조각드랍 = Math.round((baseN + 1) * 10 * (1 + 보주합산(bj, '조각')) * _보스배수)
@@ -2275,7 +2275,7 @@ export default function App() {
           set마린들(prev => prev.map(m => m.location === 'boss' ? { ...m, location: 'base' as const, dest: null, state: 'idle' as const, 타겟적id: null } : m))
           메시지표시(`🌌 10보스 전체 클리어! 보스존 마린 퇴장 → 타격수 측정기 가동!`)
         } else {
-          메시지표시(`⚔️ 보스 ${새보스}/10 클리어! 공격력 ×${새배수.toFixed(1)} · Lv+500 · 사냥터+4 🔮+${조각드랍}`)
+          메시지표시(`⚔️ 보스 ${새보스}/10 클리어! 공격력 ×${새배수.toFixed(1)} · Lv+1500 · 사냥터+4 🔮+${조각드랍}`)
         }
       }
       // 자동 화면 전환 비활성 (사용자 선호: 수동 탭 전환)
