@@ -371,15 +371,16 @@ const 판매초월경험표: Record<number, number> = {
 }
 
 // 1~56강 전부 구입 가능
-const 생산강도목록 = Array.from({ length: 56 }, (_, i) => i + 1)
+const 생산강도목록 = Array.from({ length: 50 }, (_, i) => i + 1)  // 구입은 50강까지만 (51강+ 차단)
 // 앵커 비용 (기존 데이터). 빠진 단계는 기하보간/외삽으로 채움.
+// 41강+ 비용 대폭 상승 (가파른 램프)
 const 생산비용표: Record<number, number> = {
   1: 1500, 7: 40000, 11: 700000, 15: 8000000,
   18: 100000000, 20: 600000000, 22: 3500000000, 24: 20000000000,
   26: 100000000000, 28: 600000000000, 30: 3500000000000, 32: 20000000000000,
   34: 1.2e14, 36: 8e14, 37: 6e15, 38: 5e16, 39: 8e17, 40: 1e19,
-  41: 6e19, 42: 4e20, 43: 2.5e21, 44: 1.5e22, 45: 1e23, 46: 5e23,
-  49: 1.5e24, 50: 5e25, 51: 1e26, 52: 5e27, 53: 1e29, 54: 5e31,
+  41: 8e19, 42: 6e20, 43: 5e21, 44: 4e22, 45: 3e23, 46: 2e24,
+  47: 1.5e25, 48: 1e26, 49: 8e26, 50: 6e27, 51: 5e28, 52: 4e29, 53: 3e30, 54: 2e31,
 }
 const _생산앵커 = Object.keys(생산비용표).map(Number).sort((a, b) => a - b)
 function 생산비용(강도: number): number {
@@ -2120,7 +2121,7 @@ export default function App() {
       const 최대유닛수 = 5000
       const 총마린수예상 = currentMarines.length - 판매수집.length
       if (자동구입ONRef.current && now - 자동구입타이머Ref.current >= 50 && 총마린수예상 < 최대유닛수) {
-        const lv = 자동구입강도Ref.current
+        const lv = Math.min(50, 자동구입강도Ref.current)  // 구입은 50강까지만
         const cost = 생산비용(lv)
         const 단수촉진 = Math.floor(((고유유닛Ref.current.단수 || 1) - 1) / 10)  // 고유유닛 단수 10단마다 촉진 +1
         const 배수 = 자동구입배수Ref.current + (보석Ref.current.촉진 || 0) + (일반스텟Ref.current.촉진 || 0) + (초월스텟Ref.current.촉진 || 0) + 단수촉진  // 촉진(보석+일반+초월+단수) 1당 자동생산 +1마리
@@ -2712,6 +2713,7 @@ export default function App() {
 
 
   function 유닛구매(강도: number, 수량: number = 1) {
+    if (강도 > 50) { 메시지표시('🚫 구입은 50강까지만 가능'); return }
     const 단가 = 생산비용(강도)
     const 총마린수 = 마린들Ref.current.length
     const 최대유닛수 = 5000
@@ -3251,7 +3253,7 @@ export default function App() {
           style={[styles.tab, 현재화면 === 'base' && styles.tabActive]}
           onPress={() => { set현재화면('base'); set선택ID([]) }}
         >
-          <Text style={styles.tabText}>🏠 ({베이스마린들.length}) [{마린들.length}/1000]</Text>
+          <Text style={styles.tabText}>🏠 ({베이스마린들.length}) [{마린들.length}/5000]</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, 현재화면 === 'hunting1' && styles.tabActive]}
