@@ -1,7 +1,8 @@
 // 로그인 게이트 + 클라우드 세이브 동기화 + 단일 세션
 // - 로그인해야만 플레이 가능 (전체화면 게이트)
 // - 같은 계정 새 기기 로그인 시 기존 기기 강제 종료 (세션ID 실시간 감시)
-// - 최신우선: 클라우드가 더 최신이면 받아서 새로고침 (오래된 기기가 덮어쓰기 방지)
+// - 동기화는 '세션 소유권' 기준 (시각 비교는 항상-최신 로컬 때문에 불가)
+// - 새로고침 전에 세션을 영속시켜 무한 새로고침 루프 방지
 import React, { useEffect, useRef, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, Platform, Modal } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -11,10 +12,6 @@ import {
 } from 'firebase/auth'
 import { auth, cloudLoadRaw, cloudSaveRaw, claimSession, watchSave } from './firebase'
 
-function parse시간(json: string | null): number {
-  if (!json) return 0
-  try { return JSON.parse(json).마지막저장시간 || 0 } catch { return 0 }
-}
 function newSession() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 
 export default function AuthBox({ 저장키 }: { 저장키: string }) {
@@ -28,8 +25,6 @@ export default function AuthBox({ 저장키 }: { 저장키: string }) {
   const [동기화중, set동기화중] = useState(false)
 
   const sessionRef = useRef('')
-  const cloud마지막Ref = useRef(0)
-  const cloudJsonRef = useRef<string | null>(null)
   const lastPushRef = useRef('')
   const unsubRef = useRef<null | (() => void)>(null)
 
@@ -38,73 +33,62 @@ export default function AuthBox({ 저장키 }: { 저장키: string }) {
       set초기로딩(false)
       setUser(u)
       if (u) onLogin(u.uid)
-      else { if (unsubRef.current) { unsubRef.current(); unsubRef.current = null } }
+      else if (unsubRef.current) { unsubRef.current(); unsubRef.current = null }
     })
     return () => off()
   }, [])
 
   async function onLogin(uid: string) {
     setKicked('')
-    await syncOnLogin(uid)
-    // 단일 세션 등록 + 실시간 감시
+    let needReload = false
+    try {
+      set동기화중(true)
+      const local = await AsyncStorage.getItem(저장키)
+      const mySess = await AsyncStorage.getItem(저장키 + '_sess')  // 이 기기가 마지막 점유한 세션
+      const cloud = await cloudLoadRaw(uid)
+      if (!cloud) {
+        // 최초 → 로컬 업로드
+        if (local) { await cloudSaveRaw(uid, local); lastPushRef.current = local; setMsg('☁️ 진행도 업로드됨') }
+        else setMsg('로그인됨')
+      } else if (cloud.session && mySess && cloud.session === mySess) {
+        // 클라우드를 마지막에 쓴 게 '이 기기' → 로컬 유지 (같은 기기 재접속/새로고침)
+        if (local) { await cloudSaveRaw(uid, local); lastPushRef.current = local }
+        else lastPushRef.current = cloud.json
+        setMsg('☁️ 동기화됨')
+      } else {
+        // 다른 기기가 마지막 작성자 → 클라우드 채택 후 새로고침
+        await AsyncStorage.setItem(저장키, cloud.json)
+        lastPushRef.current = cloud.json
+        needReload = true
+        setMsg('☁️ 다른 기기 세이브 불러옴 — 새로고침')
+      }
+    } catch (e: any) { setMsg('동기화 오류: ' + (e?.message || e)) }
+    finally { set동기화중(false) }
+
+    // 세션 점유 + 영속 (★ 새로고침 전에 반드시 — 루프 방지)
     const sid = newSession(); sessionRef.current = sid
     try { await claimSession(uid, sid); await AsyncStorage.setItem(저장키 + '_sess', sid) } catch {}
+
+    // 실시간 감시 (다른 기기 로그인 시 종료)
     if (unsubRef.current) unsubRef.current()
     unsubRef.current = watchSave(uid, d => {
       if (!d) return
-      cloud마지막Ref.current = d.마지막저장시간 || 0
-      cloudJsonRef.current = d.json || null
       if (d.session && d.session !== sessionRef.current) {
-        // 다른 기기에서 로그인됨 → 이 기기 종료
         setKicked('⚠️ 다른 기기에서 로그인되어 이 기기는 종료되었습니다.')
         if (unsubRef.current) { unsubRef.current(); unsubRef.current = null }
         signOut(auth)
       }
     })
+
+    if (needReload && Platform.OS === 'web') setTimeout(() => (window as any).location.reload(), 500)
   }
 
-  // 로그인 직후 동기화 — "세션 소유권" 기준 (시각 비교는 항상-최신 로컬 때문에 불가)
-  async function syncOnLogin(uid: string) {
-    try {
-      set동기화중(true)
-      const local = await AsyncStorage.getItem(저장키)
-      const mySess = await AsyncStorage.getItem(저장키 + '_sess')  // 이 기기가 마지막에 점유한 세션
-      const cloud = await cloudLoadRaw(uid)
-      if (!cloud) {
-        // 클라우드 없음(최초) → 로컬 업로드
-        if (local) { await cloudSaveRaw(uid, local); lastPushRef.current = local; setMsg('☁️ 진행도 업로드됨') }
-        else setMsg('로그인됨')
-      } else if (cloud.session && mySess && cloud.session === mySess) {
-        // 클라우드를 마지막에 쓴 게 '이 기기' → 로컬 유지(같은 기기 재접속)
-        if (local && local !== cloud.json) { await cloudSaveRaw(uid, local); lastPushRef.current = local }
-        else lastPushRef.current = cloud.json
-        setMsg('☁️ 동기화됨')
-      } else {
-        // 다른 기기가 마지막 작성자 → 클라우드 받아오기(이게 핵심 수정)
-        if (cloud.json !== local) {
-          await AsyncStorage.setItem(저장키, cloud.json)
-          lastPushRef.current = cloud.json
-          setMsg('☁️ 다른 기기 세이브 불러옴 — 새로고침')
-          if (Platform.OS === 'web') setTimeout(() => (window as any).location.reload(), 600)
-        } else { lastPushRef.current = cloud.json; setMsg('☁️ 동기화됨') }
-      }
-    } catch (e: any) { setMsg('동기화 오류: ' + (e?.message || e)) }
-    finally { set동기화중(false) }
-  }
-
-  // 30초마다: 클라우드가 더 최신이면 받아오고, 아니면 업로드
+  // 30초마다 로컬 변경분 업로드 (받아오기는 로그인 시에만 — 루프 방지)
   useEffect(() => {
     if (!user) return
     const id = setInterval(async () => {
       try {
         const local = await AsyncStorage.getItem(저장키)
-        const localT = parse시간(local)
-        if (cloud마지막Ref.current > localT && cloudJsonRef.current) {
-          // 다른 곳이 더 최신 → 받아서 새로고침 (덮어쓰기 방지)
-          await AsyncStorage.setItem(저장키, cloudJsonRef.current)
-          if (Platform.OS === 'web') (window as any).location.reload()
-          return
-        }
         if (local && local !== lastPushRef.current) {
           await cloudSaveRaw(user.uid, local); lastPushRef.current = local
         }
@@ -133,7 +117,6 @@ export default function AuthBox({ 저장키 }: { 저장키: string }) {
     await signOut(auth); setPw(''); set열림(false)
   }
 
-  // 로그인 폼 (게이트 모달 + 로그아웃 안 한 상태 공용)
   const 로그인폼 = (
     <View style={{ gap: 8 }}>
       <TextInput value={email} onChangeText={setEmail} placeholder="이메일" placeholderTextColor="#777"
@@ -151,7 +134,6 @@ export default function AuthBox({ 저장키 }: { 저장키: string }) {
 
   return (
     <>
-      {/* 로그인 필수 게이트 (전체화면) */}
       <Modal visible={!user} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(10,12,22,0.96)', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <View style={{ width: 300, maxWidth: '100%', backgroundColor: '#16213e', borderWidth: 2, borderColor: '#5a3a8a', borderRadius: 12, padding: 18, gap: 10 }}>
@@ -165,7 +147,6 @@ export default function AuthBox({ 저장키 }: { 저장키: string }) {
         </View>
       </Modal>
 
-      {/* 로그인 상태: 상단바 계정 버튼 */}
       {user && (
         <View>
           <TouchableOpacity onPress={() => set열림(v => !v)}

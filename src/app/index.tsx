@@ -65,6 +65,8 @@ const 강화확률표: number[] = [
 const 강화배율_초반 = 0.73   // 1~25강 (DP역산: 무투자 26강 ≈ 1일)
 const 초반보너스캡 = 0.03    // 1~25강 강화확률 스텟/보석 합산 상한(+3%p). 풀투자 시 ~5배 빨라짐, 캡으로 폭주 방지
 const 강화배율_중반 = 1.0    // 26~39강 (특수강화 제거 보상 — 밴드 도입 전 원래값으로 복원)
+// 시간당 ExP 패시브: 최고마린lv(45~50 클램프)의 판매크레딧비용 ÷ 환율(1e5) × 이 계수 = 시간당 ExP. 오래 켜두면 판매 크레딧 충당용. (뽑기 폭주 막으려 진행도 비례+낮게)
+const EXP_시간당판매분 = 5
 function 강화기본확률(단계: number): number {
   const 배율 = 단계 <= 25 ? 강화배율_초반 : (단계 <= 39 ? 강화배율_중반 : 1)
   return (강화확률표[단계] ?? 0) * 배율
@@ -2600,6 +2602,18 @@ export default function App() {
 
   // ExP → 크레딧 변환 (보유량 비율로 한번에 환전)
   const EXP_크레딧환율 = 100000
+
+  // 시간당 ExP 패시브 — 온라인(게임 켜둔 동안)에만, 20분 단위로 지급
+  const 최고마린lvRef2 = useRef(최고마린lv); 최고마린lvRef2.current = 최고마린lv
+  useEffect(() => {
+    const id = setInterval(() => {
+      const lv = Math.min(50, Math.max(45, 최고마린lvRef2.current || 1))
+      const 시간당 = 판매크레딧비용(lv) / EXP_크레딧환율 * EXP_시간당판매분
+      const 지급 = Math.floor(시간당 / 3)  // 20분 = 1/3시간
+      if (지급 > 0) { setExPoint(p => p + 지급); 메시지표시(`⭐ 20분 보상 +${숫자포맷(지급)} ExP`) }
+    }, 20 * 60 * 1000)  // 20분
+    return () => clearInterval(id)
+  }, [])
   function ExP를크레딧으로(비율: number) {
     const 변환ExP = Math.floor(ExPointRef.current * 비율)
     if (변환ExP < 1) { 메시지표시('⭐ 변환할 ExP가 부족합니다'); return }
@@ -3048,7 +3062,7 @@ export default function App() {
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>build B19</Text></Text>
+      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>build B20</Text></Text>
 
       <View style={styles.statBox}>
         <View style={styles.statRow}>
