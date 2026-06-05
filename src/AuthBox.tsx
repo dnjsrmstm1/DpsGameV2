@@ -2,7 +2,7 @@
 // - 로그인해야만 플레이 가능 (전체화면 게이트)
 // - 같은 계정 새 기기 로그인 시 기존 기기 강제 종료 (세션ID 실시간 감시)
 // - 동기화는 '세션 소유권' 기준 (시각 비교는 항상-최신 로컬 때문에 불가)
-// - 새로고침 전에 세션을 영속시켜 무한 새로고침 루프 방지
+// - 클라우드 채택 시 '즉시' 새로고침 (지연 주면 게임 자동저장이 덮어써서 동기화 깨짐)
 import React, { useEffect, useRef, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, Platform, Modal } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -12,6 +12,7 @@ import {
 } from 'firebase/auth'
 import { auth, cloudLoadRaw, cloudSaveRaw, claimSession, watchSave } from './firebase'
 
+const 저장주기ms = 120000  // 2분마다 클라우드 업로드 (Firebase 비용 절감)
 function newSession() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 
 export default function AuthBox({ 저장키 }: { 저장키: string }) {
@@ -39,35 +40,32 @@ export default function AuthBox({ 저장키 }: { 저장키: string }) {
   }, [])
 
   async function onLogin(uid: string) {
-    setKicked('')
-    let needReload = false
+    setKicked(''); set동기화중(true)
+    let local: string | null = null, mySess: string | null = null, cloud: Awaited<ReturnType<typeof cloudLoadRaw>> = null
     try {
-      set동기화중(true)
-      const local = await AsyncStorage.getItem(저장키)
-      const mySess = await AsyncStorage.getItem(저장키 + '_sess')  // 이 기기가 마지막 점유한 세션
-      const cloud = await cloudLoadRaw(uid)
-      if (!cloud) {
-        // 최초 → 로컬 업로드
-        if (local) { await cloudSaveRaw(uid, local); lastPushRef.current = local; setMsg('☁️ 진행도 업로드됨') }
-        else setMsg('로그인됨')
-      } else if (cloud.session && mySess && cloud.session === mySess) {
-        // 클라우드를 마지막에 쓴 게 '이 기기' → 로컬 유지 (같은 기기 재접속/새로고침)
-        if (local) { await cloudSaveRaw(uid, local); lastPushRef.current = local }
-        else lastPushRef.current = cloud.json
-        setMsg('☁️ 동기화됨')
-      } else {
-        // 다른 기기가 마지막 작성자 → 클라우드 채택 후 새로고침
-        await AsyncStorage.setItem(저장키, cloud.json)
-        lastPushRef.current = cloud.json
-        needReload = true
-        setMsg('☁️ 다른 기기 세이브 불러옴 — 새로고침')
-      }
-    } catch (e: any) { setMsg('동기화 오류: ' + (e?.message || e)) }
-    finally { set동기화중(false) }
+      local = await AsyncStorage.getItem(저장키)
+      mySess = await AsyncStorage.getItem(저장키 + '_sess')
+      cloud = await cloudLoadRaw(uid)
+    } catch (e: any) { setMsg('로드 오류: ' + (e?.message || e)); set동기화중(false); return }
 
-    // 세션 점유 + 영속 (★ 새로고침 전에 반드시 — 루프 방지)
+    // 세션 점유 + 영속 먼저 (루프 방지 + 채택 후 즉시 reload 가능)
     const sid = newSession(); sessionRef.current = sid
     try { await claimSession(uid, sid); await AsyncStorage.setItem(저장키 + '_sess', sid) } catch {}
+
+    // 클라우드를 마지막에 쓴 게 '다른 기기'면 채택
+    const adopt = !!cloud && !(cloud.session && mySess && cloud.session === mySess)
+    if (cloud && adopt) {
+      try { await AsyncStorage.setItem(저장키, cloud.json) } catch {}
+      lastPushRef.current = cloud.json
+      setMsg('☁️ 불러옴'); set동기화중(false)
+      // ★ 즉시 새로고침 (지연 주면 옛 자동저장이 덮어씀)
+      if (Platform.OS === 'web') { (window as any).location.reload() }
+      return
+    }
+
+    // 내 기기가 최신(또는 클라우드 없음) → 로컬 업로드
+    if (local) { try { await cloudSaveRaw(uid, local) } catch {} ; lastPushRef.current = local }
+    setMsg(cloud ? '☁️ 동기화됨' : '☁️ 업로드됨'); set동기화중(false)
 
     // 실시간 감시 (다른 기기 로그인 시 종료)
     if (unsubRef.current) unsubRef.current()
@@ -79,23 +77,24 @@ export default function AuthBox({ 저장키 }: { 저장키: string }) {
         signOut(auth)
       }
     })
-
-    if (needReload && Platform.OS === 'web') setTimeout(() => (window as any).location.reload(), 500)
   }
 
-  // 30초마다 로컬 변경분 업로드 (받아오기는 로그인 시에만 — 루프 방지)
+  // 2분마다 로컬 변경분 업로드
   useEffect(() => {
     if (!user) return
-    const id = setInterval(async () => {
-      try {
-        const local = await AsyncStorage.getItem(저장키)
-        if (local && local !== lastPushRef.current) {
-          await cloudSaveRaw(user.uid, local); lastPushRef.current = local
-        }
-      } catch {}
-    }, 30000)
+    const id = setInterval(() => 업로드(user.uid), 저장주기ms)
     return () => clearInterval(id)
   }, [user])
+
+  async function 업로드(uid: string, 강제 = false) {
+    try {
+      const local = await AsyncStorage.getItem(저장키)
+      if (local && (강제 || local !== lastPushRef.current)) {
+        await cloudSaveRaw(uid, local); lastPushRef.current = local
+        if (강제) setMsg('☁️ 동기화 완료 ' + new Date().toLocaleTimeString())
+      } else if (강제) setMsg('변경사항 없음')
+    } catch (e: any) { if (강제) setMsg('업로드 오류: ' + (e?.message || e)) }
+  }
 
   async function 로그인() {
     setMsg(''); setKicked('')
@@ -156,7 +155,8 @@ export default function AuthBox({ 저장키 }: { 저장키: string }) {
           {열림 && (
             <View style={{ position: 'absolute', top: 28, right: 0, width: 230, backgroundColor: '#16213e', borderWidth: 2, borderColor: '#5a3a8a', borderRadius: 8, padding: 10, zIndex: 999, gap: 6 }}>
               <Text style={{ color: '#7ed957', fontSize: 12, fontWeight: 'bold' }}>☁️ {user.email}</Text>
-              <Text style={{ color: '#aaa', fontSize: 10 }}>30초마다 자동 동기화 · 1기기만 접속</Text>
+              <Text style={{ color: '#aaa', fontSize: 10 }}>2분마다 자동 동기화 · 1기기만 접속</Text>
+              <TouchableOpacity onPress={() => 업로드(user.uid, true)} style={btn('#3a5a8a')}><Text style={bt}>지금 동기화(업로드)</Text></TouchableOpacity>
               <TouchableOpacity onPress={로그아웃} style={btn('#e94560')}><Text style={bt}>로그아웃</Text></TouchableOpacity>
               {(msg || 동기화중) ? <Text style={{ color: '#f5a623', fontSize: 10 }}>{동기화중 ? '동기화 중…' : msg}</Text> : null}
             </View>
