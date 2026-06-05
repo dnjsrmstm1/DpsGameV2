@@ -1233,6 +1233,9 @@ export default function App() {
   const [재화쿠폰만료, set재화쿠폰만료] = useState(0)  // 45~50강 판매 재화 2배
   const [자동구입배수, set자동구입배수] = useState<number>(1)
   const [내부계산모드, set내부계산모드] = useState(false)  // 렌더 OFF → 렉 해소
+  const [로그인됨, set로그인됨] = useState(false)  // 로그인 안 하면 게임 정지(생산/전투 멈춤)
+  const [다음ExP지급시각, set다음ExP지급시각] = useState(0)  // 시간당 ExP 다음 지급 예정 시각
+  const [마지막ExP지급액, set마지막ExP지급액] = useState(0)  // 직전 20분 지급량
   // 신규 재화 (원본 맵 기반)
   // 각성의 보석: 보스/뽑기에서 드랍, 추가 Ex스탯 포인트 교환에 사용
   const [각성의보석, set각성의보석] = useState(0)
@@ -1286,6 +1289,7 @@ export default function App() {
   const 보주Ref = useRef(보주); 보주Ref.current = 보주
   const 무색조각Ref = useRef(무색조각); 무색조각Ref.current = 무색조각
   const 내부계산모드Ref = useRef(내부계산모드); 내부계산모드Ref.current = 내부계산모드
+  const 로그인됨Ref = useRef(로그인됨); 로그인됨Ref.current = 로그인됨
   const 응무조Ref = useRef(응무조); 응무조Ref.current = 응무조
   const 크리스탈조각Ref = useRef(크리스탈조각); 크리스탈조각Ref.current = 크리스탈조각
   const 상급크리스탈조각Ref = useRef(상급크리스탈조각); 상급크리스탈조각Ref.current = 상급크리스탈조각
@@ -1550,6 +1554,7 @@ export default function App() {
           if (typeof d.자동구입강도 === 'number') set자동구입강도(d.자동구입강도)
           if (typeof d.자동구입ON === 'boolean') set자동구입ON(d.자동구입ON)
           if (typeof d.자동구입배수 === 'number') set자동구입배수(Math.max(1, d.자동구입배수))
+          if (typeof d.내부계산모드 === 'boolean') set내부계산모드(d.내부계산모드)
           if (d.업그레이드 && typeof d.업그레이드 === 'object') set업그레이드(prev => ({ ...prev, ...d.업그레이드}))
           if (typeof d.캐릭레벨 === 'number') set캐릭레벨(d.캐릭레벨)
           if (typeof d.경험치 === 'number') set경험치(d.경험치)
@@ -1622,6 +1627,7 @@ export default function App() {
       환생레벨, 누적환생수, 누적50강생산,
       누적강화성공, 누적판매, 최고마린lv, 융합누적,
       자동강화ON, 자동강화최대lv, 자동판매ON, 자동판매lv, 자동구입강도, 자동구입ON, 자동구입배수,
+      내부계산모드,
       강화최초달성: Array.from(강화최초달성),
       마지막저장시간: Date.now(),
     }))
@@ -1636,7 +1642,7 @@ export default function App() {
       타격수획득idx, extraVI받음, extraXI받음,
       환생레벨, 누적환생수, 누적50강생산,
       누적강화성공, 누적판매, 최고마린lv, 융합누적,
-      자동강화ON, 자동강화최대lv, 자동판매ON, 자동판매lv, 자동구입강도, 자동구입ON, 자동구입배수, 로드완료])
+      자동강화ON, 자동강화최대lv, 자동판매ON, 자동판매lv, 자동구입강도, 자동구입ON, 자동구입배수, 내부계산모드, 로드완료])
 
   // ============================================
   // 게임 루프
@@ -1647,6 +1653,9 @@ export default function App() {
       const now = Date.now()
       const dt = Math.min(0.1, (now - lastTick) / 1000)
       lastTick = now
+
+      // 로그인 안 하면 게임 정지 (생산·전투·강화 전부 멈춤)
+      if (!로그인됨Ref.current) return
 
       // 만료된 floating 제거
       setDmg플로팅들(prev => prev.filter(d => d.until > now))
@@ -2606,11 +2615,14 @@ export default function App() {
   // 시간당 ExP 패시브 — 온라인(게임 켜둔 동안)에만, 20분 단위로 지급
   const 최고마린lvRef2 = useRef(최고마린lv); 최고마린lvRef2.current = 최고마린lv
   useEffect(() => {
+    set다음ExP지급시각(Date.now() + 20 * 60 * 1000)
     const id = setInterval(() => {
+      set다음ExP지급시각(Date.now() + 20 * 60 * 1000)
+      if (!로그인됨Ref.current) return  // 로그인 안 하면 지급 X
       const lv = Math.min(50, Math.max(45, 최고마린lvRef2.current || 1))
       const 시간당 = 판매크레딧비용(lv) / EXP_크레딧환율 * EXP_시간당판매분
       const 지급 = Math.floor(시간당 / 3)  // 20분 = 1/3시간
-      if (지급 > 0) { setExPoint(p => p + 지급); 메시지표시(`⭐ 20분 보상 +${숫자포맷(지급)} ExP`) }
+      if (지급 > 0) { setExPoint(p => p + 지급); set마지막ExP지급액(지급); 메시지표시(`⭐ 20분 보상 +${숫자포맷(지급)} ExP`) }
     }, 20 * 60 * 1000)  // 20분
     return () => clearInterval(id)
   }, [])
@@ -3062,12 +3074,12 @@ export default function App() {
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>build B22</Text></Text>
+      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>build B23</Text></Text>
 
       <View style={styles.statBox}>
-        <View style={styles.statRow}>
-          <Text style={styles.stat} numberOfLines={1}>💎 {숫자포맷(mineral)}</Text>
-          <TouchableOpacity onPress={() => {
+        <View style={[styles.statRow, { width: '100%' }]}>
+          <Text style={[styles.stat, { flex: 1 }]} numberOfLines={1}>💎 {숫자포맷(mineral)}</Text>
+          <TouchableOpacity style={{ flex: 1, alignItems: 'center' }} onPress={() => {
             const next = 타격마일스톤표[타격수획득idx]
             if (!next) { 메시지표시('🏆 타격수 마일스톤 전부 완료'); return }
             const r = next.보상
@@ -3082,7 +3094,7 @@ export default function App() {
           }}>
             <Text style={styles.statSmall}>🎯 {숫자포맷(총공격수)}</Text>
           </TouchableOpacity>
-          <Text style={[styles.statSmall, { color: 잔여포인트 > 0 ? '#f5a623' : '#aaa' }]}>Lv.{캐릭레벨}{잔여포인트 > 0 ? ` (+${잔여포인트}P)` : ''}</Text>
+          <Text style={[styles.statSmall, { flex: 1, textAlign: 'right', color: 잔여포인트 > 0 ? '#f5a623' : '#aaa' }]} numberOfLines={1}>Lv.{캐릭레벨}{잔여포인트 > 0 ? ` (+${잔여포인트}P)` : ''}</Text>
         </View>
         <View style={[styles.statRow, { marginTop: 4 }]}>
           <TouchableOpacity onPress={() => set재화패널열림(v => {
@@ -3113,7 +3125,7 @@ export default function App() {
           })} style={{ paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#8a5a2a', borderRadius: 4 }}>
             <Text style={[styles.statSmall, { color: '#fff' }]}>🛒 상점</Text>
           </TouchableOpacity>
-          <AuthBox 저장키={저장키} />
+          <AuthBox 저장키={저장키} onAuth={set로그인됨} />
         </View>
       </View>
 
@@ -3161,6 +3173,22 @@ export default function App() {
             </View>
             <Text style={[styles.currencyItem, { color: '#a855f7' }]}>⭐ ExP {숫자포맷(ExPoint)}</Text>
             <ScrollView style={{ maxHeight: 필드_H - 120 }}>
+              {/* 시간당 ExP 패시브 정보 */}
+              <View style={{ backgroundColor: '#0d1526', borderRadius: 6, padding: 8, marginBottom: 8 }}>
+                <Text style={[styles.currencySection, { marginTop: 0 }]}>⏱️ 시간당 ExP (온라인 전용)</Text>
+                {(() => {
+                  const _lv = Math.min(50, Math.max(45, 최고마린lv || 1))
+                  const _20분 = Math.floor(판매크레딧비용(_lv) / EXP_크레딧환율 * EXP_시간당판매분 / 3)
+                  const _남 = Math.max(0, Math.ceil((다음ExP지급시각 - now) / 1000))
+                  const mm = Math.floor(_남 / 60), ss = _남 % 60
+                  return (
+                    <>
+                      <Text style={{ color: '#aaa', fontSize: 11 }}>20분마다 +{숫자포맷(_20분)} ExP (시간당 ≈ {숫자포맷(_20분 * 3)})</Text>
+                      <Text style={{ color: '#f5a623', fontSize: 11 }}>다음 지급까지 {mm}:{String(ss).padStart(2, '0')}{마지막ExP지급액 > 0 ? `  ·  직전 +${숫자포맷(마지막ExP지급액)}` : ''}</Text>
+                    </>
+                  )
+                })()}
+              </View>
               <Text style={styles.currencySection}>⭐ ExP → 💰 크레딧 (1 : {숫자포맷(EXP_크레딧환율)})</Text>
               <View style={styles.currencyBtnRow}>
                 {([['25%', 0.25], ['50%', 0.5], ['전부', 1]] as const).map(([라벨, 비율]) => {

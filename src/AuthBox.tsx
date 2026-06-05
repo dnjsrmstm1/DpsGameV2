@@ -15,7 +15,7 @@ import { auth, cloudLoadRaw, cloudSaveRaw, claimSession, watchSave } from './fir
 const 저장주기ms = 120000  // 2분마다 클라우드 업로드 (Firebase 비용 절감)
 function newSession() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 
-export default function AuthBox({ 저장키 }: { 저장키: string }) {
+export default function AuthBox({ 저장키, onAuth }: { 저장키: string; onAuth?: (loggedIn: boolean) => void }) {
   const [user, setUser] = useState<User | null>(null)
   const [초기로딩, set초기로딩] = useState(true)
   const [kicked, setKicked] = useState('')
@@ -33,6 +33,7 @@ export default function AuthBox({ 저장키 }: { 저장키: string }) {
     const off = onAuthStateChanged(auth, u => {
       set초기로딩(false)
       setUser(u)
+      onAuth?.(!!u)  // 게임 정지/재개 신호
       if (u) onLogin(u.uid)
       else if (unsubRef.current) { unsubRef.current(); unsubRef.current = null }
     })
