@@ -11,6 +11,7 @@ import { auth, cloudLoadRaw, cloudSaveRaw, claimSession, watchSave } from './fir
 
 function newSession() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 function 최고강(j: string | null): string { try { return j ? String(JSON.parse(j).최고마린lv ?? '?') : '-' } catch { return '?' } }
+function 저장시각(j: string | null): number { try { return j ? (JSON.parse(j).마지막저장시간 || 0) : 0 } catch { return 0 } }
 
 type 충돌타입 = { cloudJson: string; cloudVer: number; cloud최고: string; local최고: string } | null
 
@@ -95,24 +96,20 @@ export default function AuthBox({ 저장키, onAuth, 보너스요약 }: { 저장
       if (!local && Platform.OS === 'web') (window as any).location.reload()
       return
     }
-    // 로컬·클라우드 둘 다 데이터 있고 다름
-    if (cloudVer > myVer) {
-      const c최고 = parseInt(최고강(cloud.json)) || 0
-      const l최고 = parseInt(최고강(local)) || 0
-      if (c최고 >= l최고) {
-        // 클라우드 진행도가 같거나 많음 → 자동 불러오기 + 새로고침 (일반 기기전환)
-        try { await AsyncStorage.setItem(저장키, cloud.json); await AsyncStorage.setItem(verKey, String(cloudVer)) } catch {}
-        lastPushRef.current = cloud.json; myVerRef.current = cloudVer
-        setMsg('☁️ 클라우드 불러옴 — ' + 진단); set동기화중(false)
-        if (Platform.OS === 'web') (window as any).location.reload()
-        return
-      }
-      // 클라우드 버전 높은데 진행도 적음(덮어쓰기 의심) → 충돌 선택
-      set충돌({ cloudJson: cloud.json, cloudVer, cloud최고: 최고강(cloud.json), local최고: 최고강(local) })
-      setMsg('⚠️ 세이브 충돌 — 선택 필요'); set동기화중(false)
+    // 로컬·클라우드 둘 다 데이터 있고 다름 → 버전 무시, 진행도(최고강) 우선; 동률이면 최근 저장 우선
+    const c최고 = parseInt(최고강(cloud.json)) || 0
+    const l최고 = parseInt(최고강(local)) || 0
+    const 클라우드채택 = (c최고 !== l최고) ? (c최고 > l최고) : (저장시각(cloud.json) > 저장시각(local))
+    const v = Math.max(cloudVer, myVer)
+    if (클라우드채택) {
+      // 클라우드가 더 진행됨(or 더 최근) → 자동 불러오기 + 새로고침 (기기전환)
+      try { await AsyncStorage.setItem(저장키, cloud.json); await AsyncStorage.setItem(verKey, String(v)) } catch {}
+      lastPushRef.current = cloud.json; myVerRef.current = v; cloudVerRef.current = v
+      setMsg('☁️ 클라우드 불러옴 — ' + 진단); set동기화중(false)
+      if (Platform.OS === 'web') (window as any).location.reload()
       return
     }
-    // 내 버전 >= 클라우드 → 내가 최신 → 업로드
+    // 로컬이 더 진행됨(or 더 최근, or 동일) → 업로드
     await pushLocal(uid, local)
     setMsg('☁️ 업로드됨 — ' + 진단); set동기화중(false)
   }

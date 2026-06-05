@@ -672,6 +672,7 @@ const 필드_W = _isWeb ? 460 : Math.min(380, 화면W - 16)
 const 필드_H = _isWeb
   ? Math.max(380, Math.min(560, 화면H - 220))
   : Math.max(280, Math.min(440, 화면H - 400))
+const 최대표시유닛 = 400  // 화면에 동시에 그리는 스프라이트 상한 (렉 방지; 시뮬레이션은 전체 적용)
 const 마린_크기 = 34
 const 적_크기 = 42      // 일반 적 (보스/몹용 별도)
 const 몹_크기 = 90       // 사냥터 몹 (크게)
@@ -1387,6 +1388,12 @@ export default function App() {
     : 현재화면 === 'hunting2' ? 사냥터2마린들
     : 현재화면 === 'hunting3' ? 사냥터3마린들
     : 현재화면 === 'boss' ? 보스존마린들 : 베이스마린들
+  // 내부계산모드 숨김 필터 + 렌더 상한 적용 → 실제로 스프라이트를 그릴 마린들
+  const 표시마린들 = (내부계산모드 && 현재화면 === 'base'
+    ? 화면마린들.filter(m => !(자동강화ON && m.lv <= 자동강화최대lv))
+    : 화면마린들
+  ).slice(0, 최대표시유닛)
+  const 표시마린들Ref = useRef(표시마린들); 표시마린들Ref.current = 표시마린들
   // 보주 효과 합산 (렌더 시점)
   const _보주공격r = 보주합산(보주, '공격')
   const _보주크리r = 보주합산(보주, '크리')
@@ -1529,7 +1536,8 @@ export default function App() {
   const 현재배수 = 자원배수(Math.max(사냥터DPS, 최고DPS)) * (1 + _보주배수r)
   const 사냥터마린DPS = 사냥터마린들.reduce((s, m) => s + 공격력(m.lv, _초월r, _일반공업r) * _공격력배수r * 공격속도(m.lv) * _공속배수r * 연타수(m.lv) * (1 + _크리r), 0)
   const 시간당미네랄 = 사냥터마린DPS * 현재배수 * (1 + _보주자원r) * 3600
-  const 선택한마린들 = 마린들.filter(m => 선택ID.includes(m.id)).sort((a, b) => b.lv - a.lv)
+  const 표시ID = new Set(표시마린들.map(m => m.id))
+  const 선택한마린들 = 마린들.filter(m => 선택ID.includes(m.id) && 표시ID.has(m.id)).sort((a, b) => b.lv - a.lv)
 
   // 메시지 자동 숨김
   function 메시지표시(msg: string) {
@@ -3013,9 +3021,10 @@ export default function App() {
           const tapNow = Date.now()
           const last = lastTapRef.current
           if (last && last.id === 마린.id && tapNow - last.time < 350) {
-            // 더블탭 → 같은 강도 마린 전체 선택
+            // 더블탭 → 같은 강도 마린 전체 선택 (표시된 유닛만)
+            const 표시Set = new Set(표시마린들Ref.current.map(m => m.id))
             const sameLv = 마린들Ref.current.filter(m =>
-              m.location === 현재화면Ref.current && m.lv === 마린.lv
+              m.location === 현재화면Ref.current && m.lv === 마린.lv && 표시Set.has(m.id)
             )
             set선택ID(sameLv.map(m => m.id))
             lastTapRef.current = null
@@ -3040,8 +3049,9 @@ export default function App() {
         const y1 = Math.min(start.y, end.y)
         const x2 = Math.max(start.x, end.x)
         const y2 = Math.max(start.y, end.y)
+        const 표시Set2 = new Set(표시마린들Ref.current.map(m => m.id))
         const inBox = 마린들Ref.current.filter(m =>
-          m.location === 현재화면Ref.current && 점이사각형안에(m.pos, x1, y1, x2, y2)
+          m.location === 현재화면Ref.current && 점이사각형안에(m.pos, x1, y1, x2, y2) && 표시Set2.has(m.id)
         )
         set선택ID(inBox.map(m => m.id))
         // 사냥터 화면에서 드래그 박스가 고유유닛 위치 덮으면 고유유닛도 같이 선택
@@ -3138,7 +3148,7 @@ export default function App() {
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>BUILD C7</Text></Text>
+      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>BUILD C8</Text></Text>
 
       <View style={styles.statBox}>
         <View style={[styles.statRow, { width: '100%' }]}>
@@ -3690,8 +3700,8 @@ export default function App() {
         )}
 
         {/* 마린 (현재 화면에 있는 마린만) */}
-        {/* 내부계산모드: 강화중 유닛 숨김(베이스만). 사냥터·보스존은 항상 전부 표시 */}
-        {((내부계산모드 && 현재화면 === 'base') ? 화면마린들.filter(m => !(자동강화ON && m.lv <= 자동강화최대lv)) : 화면마린들).map(m => {
+        {/* 내부계산모드: 강화중 유닛 숨김(베이스만). 사냥터·보스존은 항상 전부 표시. 최대표시유닛 상한 적용 */}
+        {표시마린들.map(m => {
           const selected = 선택ID.includes(m.id)
           const flash = m.공격플래시Until > now
           return (
