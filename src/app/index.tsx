@@ -3044,7 +3044,7 @@ export default function App() {
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>build B16</Text></Text>
+      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>build B17</Text></Text>
 
       <View style={styles.statBox}>
         <View style={styles.statRow}>
@@ -4205,6 +4205,8 @@ const styles = StyleSheet.create({
     width: 필드_W,
     alignItems: 'center',
     marginBottom: 2,
+    zIndex: 500,      // 로그인 드롭다운이 탭바/필드/패널 위로 뜨게
+    elevation: 40,
   },
   stat: { fontSize: 15, color: '#ffffff', marginBottom: 2 },
   statResource: { fontSize: 14, color: '#7ed957', fontWeight: 'bold' },
