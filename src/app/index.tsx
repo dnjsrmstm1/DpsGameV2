@@ -1792,6 +1792,7 @@ export default function App() {
       const 기존사냥2수 = currentMarines.filter(m => m.location === 'hunting2').length
       const 기존사냥3수 = currentMarines.filter(m => m.location === 'hunting3').length
       let 사냥1추가 = 0, 사냥2추가 = 0, 사냥3추가 = 0
+      const 사냥터퇴출ids: number[] = []  // 내부계산모드 자동교체로 사냥터→베이스 퇴출될 마린 id
       // 56강 융합 필요수: 절약보주 1개당 -10 마리. 최소 1마리. 55강 마린을 누적 흡수해 도달 시 56강 1마리 생성
       const 융합필요수 = Math.max(1, 20000 - bj.절약 * 10)
       const 판매수집: { lv: number }[] = []
@@ -1828,12 +1829,12 @@ export default function App() {
         // 사냥터 입구 (cap = 사냥터캡, 강도별 사냥터 1/2/3 자동 라우팅)
         if (점이구역안에(m.pos, ZONE_사냥터입구)) {
           const 목표loc: 유닛위치 = 사냥화면(m.lv)
-          // 사냥터 1+2+3 합산 cap (사냥터캡)
-          const 합산수 = (기존사냥1수 + 사냥1추가) + (기존사냥2수 + 사냥2추가) + (기존사냥3수 + 사냥3추가)
+          // 사냥터 1+2+3 합산 cap (사냥터캡). 자동교체 퇴출분 제외
+          const 합산수 = (기존사냥1수 + 사냥1추가) + (기존사냥2수 + 사냥2추가) + (기존사냥3수 + 사냥3추가) - 사냥터퇴출ids.length
           const 기존수 = 목표loc === 'hunting1' ? 기존사냥1수 + 사냥1추가
             : 목표loc === 'hunting2' ? 기존사냥2수 + 사냥2추가
             : 기존사냥3수 + 사냥3추가
-          if (합산수 < 사냥터캡) {
+          const 진입 = (전환 = true): 마린 => {
             const 새m = {
               ...m,
               location: 목표loc,
@@ -1845,14 +1846,31 @@ export default function App() {
             if (목표loc === 'hunting1') 사냥1추가++
             else if (목표loc === 'hunting2') 사냥2추가++
             else 사냥3추가++
-            if (!화면전환target) 화면전환target = 목표loc
+            if (전환 && !화면전환target) 화면전환target = 목표loc
             return 새m
-          } else {
-            if (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 1500) {
-              메시지표시(`🚫 사냥터${목표loc.slice(-1)} 가득참 (${사냥터캡}/${사냥터캡})`)
+          }
+          if (합산수 < 사냥터캡) {
+            return 진입()
+          }
+          // 가득 참 + 내부계산모드 → 사냥터 최저강 유닛과 자동 교체 (B안). 화면전환 없음
+          if (내부계산모드Ref.current) {
+            let 최저: 마린 | null = null
+            for (const h of currentMarines) {
+              if (!is사냥터(h.location as 화면)) continue
+              if (사냥터퇴출ids.indexOf(h.id) !== -1) continue
+              if (!최저 || h.lv < 최저.lv) 최저 = h
             }
+            if (최저 && 최저.lv < m.lv) {
+              사냥터퇴출ids.push(최저.id)
+              return 진입(false)
+            }
+            // 교체할 더 낮은 유닛 없음 → 베이스 잔류
             return { ...m, state: 'idle', dest: null }
           }
+          if (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 1500) {
+            메시지표시(`🚫 사냥터${목표loc.slice(-1)} 가득참 (${사냥터캡}/${사냥터캡})`)
+          }
+          return { ...m, state: 'idle', dest: null }
         }
         // 판매소: 마린 판매 (51강은 판매 불가 — 통과)
         if (점이구역안에(m.pos, ZONE_판매소)) {
@@ -2199,6 +2217,14 @@ export default function App() {
           메시지표시(`🔮 56강 융합 성공! +${융합완성수}마리 (누적 ${숫자포맷(융합필요수)})`)
         }
         set융합누적(새융합누적)
+      }
+      // 내부계산모드 자동교체: 퇴출 대상 마린을 베이스로 이동 (사냥터엔 더 높은 강화 유닛이 들어옴)
+      if (사냥터퇴출ids.length > 0) {
+        const 퇴출set = new Set(사냥터퇴출ids)
+        let bc2 = finalMarines2.filter(m => m.location === 'base').length
+        finalMarines2 = finalMarines2.map(m => 퇴출set.has(m.id)
+          ? { ...m, location: 'base' as const, pos: 베이스시작위치(bc2++), state: 'idle' as 유닛상태, dest: null, 타겟적id: null }
+          : m)
       }
       set마린들(finalMarines2)
 
@@ -3149,7 +3175,7 @@ export default function App() {
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>BUILD C12</Text></Text>
+      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>BUILD C13</Text></Text>
 
       <View style={styles.statBox}>
         <View style={[styles.statRow, { width: '100%' }]}>
