@@ -387,7 +387,7 @@ function 다음초월경험치(초월lv: number): number {
 const 강화51초월경험 = 1
 // 52강+ 유닛 판매 시 초월경험치 (강도별, 밸런스값 — 조정 가능)
 const 판매초월경험표: Record<number, number> = {
-  52: 20, 53: 350, 54: 10000, 55: 160000, 56: 3000000,
+  52: 100, 53: 350, 54: 10000, 55: 160000, 56: 3000000,
   57: 50000000, 58: 1000000000, 59: 30000000000, 60: 1000000000000,
 }
 
@@ -428,7 +428,7 @@ function 판매크레딧비용(lv: number): number {
   if (lv >= 45 && lv <= 48) return 1e6
   if (lv === 49) return 1e7
   if (lv === 50) return 1e8
-  if (lv === 52) return 1e12
+  if (lv === 52) return 1e10  // 50강(1e8)→52강 절벽 완화 (기존 1e12 → 1e10): 52강 판매가 실제로 돌아가 초월경험 수급
   if (lv === 53) return 1e13
   if (lv === 54) return 1e14
   if (lv === 55) return 1e15
@@ -3210,7 +3210,7 @@ export default function App() {
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>BUILD C27</Text></Text>
+      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>BUILD C28</Text></Text>
 
       <View style={styles.statBox}>
         <View style={[styles.statRow, { width: '100%' }]}>
