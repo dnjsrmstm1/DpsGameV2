@@ -1744,7 +1744,8 @@ export default function App() {
       const 평균크리 = Math.min(0.95, 보주크리)
       const 초월s = 초월스텟Ref.current
       const 효과DPS = (lv: number) => 공격력(lv, 초월s, 스텟.유닛공업) * 공격력배수 * 공격속도(lv) * 공속배수 * 연타수(lv) * (1 + 평균크리)
-      const huntingDPS = bossMarines.filter(m => m.state === 'attacking').reduce((s, m) => s + 효과DPS(m.lv), 0)
+      // 엑보존(보스 10클리어 후)에선 보스존 유닛 DPS가 수입(최고DPS·currentBatch)을 구동하지 않음
+      const huntingDPS = 보스처치수Ref.current >= 10 ? 0 : bossMarines.filter(m => m.state === 'attacking').reduce((s, m) => s + 효과DPS(m.lv), 0)
       if (huntingDPS > 최고DPSRef.current) {
         set최고DPS(huntingDPS)
       }
@@ -1885,6 +1886,13 @@ export default function App() {
         }
         // 판매소: 마린 판매 (51강은 판매 불가 — 통과)
         if (점이구역안에(m.pos, ZONE_판매소)) {
+          if (m.lv >= 51 && 초월레벨Ref.current < 1) {
+            // 초월 미해금(30만 레벨 전) → 51강+ 판매 불가 (적립 없음)
+            if (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 1500) {
+              메시지표시(`🚫 초월 해금(30만 레벨) 전엔 51강+ 판매 불가`)
+            }
+            return { ...m, state: 'idle', dest: null }
+          }
           if (m.lv === 51) {
             if (메시지타이머Ref.current === 0 || now - 메시지타이머Ref.current > 1500) {
               메시지표시(`🚫 51강은 판매 불가`)
@@ -2518,7 +2526,9 @@ export default function App() {
       tDelta++
     }
     set초월경험치(txp)
+    초월경험치Ref.current = txp  // ref 즉시 동기화 → 다음 틱 stale 스냅샷으로 초월경험 유실되던 버그 수정
     if (tDelta > 0) {
+      초월레벨Ref.current += tDelta
       set초월레벨(prev => prev + tDelta)
       set초월잔여포인트(prev => prev + tDelta * 5)  // 초월레벨당 초월스텟 5
       set잔여포인트(prev => prev + tDelta * 5)        // 초월레벨당 일반스텟 5
@@ -3197,7 +3207,7 @@ export default function App() {
       overScrollMode="never"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>BUILD C25</Text></Text>
+      <Text style={styles.title}>DPS 강화하기 ⚔️ RTS  <Text style={{ fontSize: 11, color: '#7ed957' }}>BUILD C26</Text></Text>
 
       <View style={styles.statBox}>
         <View style={[styles.statRow, { width: '100%' }]}>
